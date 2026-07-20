@@ -1,0 +1,1400 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>TRAZA·Equipos</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<style>
+  :root{
+    --navy:#1A2D42; --blue:#007B7F; --blue-light:#009B9E;
+    --ok:#1E8E5A; --warn:#B97509; --bad:#C0392B; --accent:#009B9E;
+    --bg:#F5F7F8; --card:#FFFFFF; --text:#1A1A1A; --muted:#6B7280;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{
+    font-family:-apple-system,Segoe UI,Roboto,sans-serif;
+    background:var(--bg); color:var(--text); font-size:16px;
+    padding-bottom:70px;
+  }
+  header{
+    background:var(--navy); color:#fff; padding:14px 20px;
+    display:flex; justify-content:space-between; align-items:center;
+    position:sticky; top:0; z-index:10;
+  }
+  header .brand{display:flex; align-items:center; gap:10px; font-weight:700; font-size:18px; letter-spacing:.5px;}
+  header .brand svg{flex-shrink:0;}
+  header .user{font-size:13px; opacity:.85;}
+  #login-screen{
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    min-height:100vh; padding:24px; gap:14px; background:var(--bg);
+  }
+  #login-screen .login-logo{display:flex; flex-direction:column; align-items:center; gap:8px; margin-bottom:16px;}
+  #login-screen h1{color:var(--navy); font-size:22px; margin-bottom:0;}
+  #login-screen .subtitle{color:var(--muted); font-size:13px;}
+  #login-screen input{
+    width:100%; max-width:360px; padding:14px; border:1px solid #D1D5DB;
+    border-radius:10px; font-size:16px;
+  }
+  #login-screen button, .btn-primary{
+    width:100%; max-width:360px; padding:14px; border:none; border-radius:10px;
+    background:var(--accent); color:#fff; font-size:16px; font-weight:600;
+    min-height:48px; cursor:pointer;
+  }
+  #login-error{color:var(--bad); font-size:14px; min-height:18px;}
+
+  main{padding:14px 20px; max-width:800px; margin:0 auto;}
+  .tabs{
+    display:flex; background:var(--card); border-radius:12px; overflow:hidden;
+    box-shadow:0 1px 3px rgba(0,0,0,.08); margin-bottom:14px;
+  }
+  .tab{
+    flex:1; text-align:center; padding:12px; font-weight:600; font-size:15px;
+    color:var(--muted); cursor:pointer; border-bottom:3px solid transparent;
+  }
+  .tab.active{color:var(--blue); border-bottom-color:var(--accent); background:#F0F7F7;}
+  .view{display:none;}
+  .view.active{display:block;}
+
+  .card{
+    background:var(--card); border-radius:14px; padding:16px; margin-bottom:12px;
+    box-shadow:0 1px 3px rgba(0,0,0,.08);
+  }
+  .card-title{font-weight:700; font-size:16px; margin-bottom:4px;}
+  .card-sub{color:var(--muted); font-size:13px; margin-bottom:10px;}
+  .badge{
+    display:inline-block; padding:3px 10px; border-radius:20px; font-size:12px;
+    font-weight:700; color:#fff;
+  }
+  .badge.ok{background:var(--ok);} .badge.warn{background:var(--warn);}
+  .badge.bad{background:var(--bad);} .badge.info{background:var(--blue-light);}
+
+  .btn{
+    display:block; width:100%; padding:14px; border:none; border-radius:10px;
+    font-size:15px; font-weight:600; min-height:48px; cursor:pointer; margin-top:8px;
+  }
+  .btn.primary{background:var(--accent); color:#fff;}
+  .btn.danger{background:var(--bad); color:#fff;}
+  .btn.secondary{background:#EEF2F6; color:var(--blue);}
+
+  .search-box{
+    width:100%; padding:14px; border:1px solid #D1D5DB; border-radius:10px;
+    font-size:16px; margin-bottom:12px;
+  }
+  .result-row{
+    display:flex; justify-content:space-between; align-items:center;
+    padding:12px 4px; border-bottom:1px solid #EEF0F2; cursor:pointer;
+  }
+  .result-row:last-child{border-bottom:none;}
+  .empty{color:var(--muted); text-align:center; padding:30px 10px; font-size:14px;}
+
+  .poseedor-info{background:#F0F7F7; border-radius:10px; padding:14px; margin:10px 0;}
+
+  .fungible-btn{
+    display:flex; align-items:center; justify-content:center; gap:8px;
+    background:#EEF2F6; color:var(--blue); font-weight:600;
+  }
+
+  /* ---- Panel Gestor ---- */
+  .kpi-strip{display:flex; gap:8px; overflow-x:auto; margin-bottom:14px;}
+  .kpi{
+    background:var(--card); border-radius:12px; padding:12px 16px; min-width:110px;
+    box-shadow:0 1px 3px rgba(0,0,0,.08); text-align:center; flex-shrink:0;
+  }
+  .kpi .num{font-size:22px; font-weight:700; color:var(--navy);}
+  .kpi .lbl{font-size:11px; color:var(--muted); margin-top:2px;}
+  .subtabs{display:flex; gap:6px; margin-bottom:12px; flex-wrap:wrap;}
+  .subtab{
+    padding:8px 14px; border-radius:20px; font-size:13px; font-weight:600;
+    background:#EEF2F6; color:var(--blue); cursor:pointer;
+  }
+  .subtab.active{background:var(--navy); color:#fff;}
+  .subview{display:none;} .subview.active{display:block;}
+  .modal-overlay{position:fixed; inset:0; background:rgba(0,0,0,.45); display:flex; align-items:center; justify-content:center; z-index:200; padding:16px;}
+  .modal-box{background:var(--card); border-radius:14px; padding:18px; max-width:420px; width:100%; max-height:80vh; overflow-y:auto;}
+  .modal-box h3{margin-bottom:12px; font-size:16px;}
+  .fungible-opcion{padding:10px 12px; border-radius:10px; background:#EEF0F2; margin-bottom:8px; cursor:pointer; font-size:14px;}
+  .fungible-opcion:hover{background:#E2E5E9;}
+  .fungible-opcion.selected{background:var(--accent); color:#fff;}
+  .kanban{display:flex; gap:10px; overflow-x:auto;}
+  .kanban-col{background:#EEF0F2; border-radius:12px; padding:10px; min-width:220px; flex-shrink:0;}
+  .kanban-col h4{font-size:13px; color:var(--muted); margin-bottom:8px; text-transform:uppercase;}
+  .kanban-card{background:var(--card); border-radius:10px; padding:10px; margin-bottom:8px; font-size:13px; box-shadow:0 1px 2px rgba(0,0,0,.06);}
+  table.inv{width:100%; border-collapse:collapse; font-size:13px; background:var(--card); border-radius:10px; overflow:hidden;}
+  table.inv th{background:var(--navy); color:#fff; padding:8px; text-align:left;}
+  table.inv td{padding:8px; border-bottom:1px solid #EEF0F2;}
+  .gauge-wrap{background:#EEE; border-radius:6px; height:10px; overflow:hidden; margin-top:6px;}
+  .gauge-fill{height:100%; background:var(--ok);}
+  .gauge-fill.low{background:var(--bad);}
+
+  /* ---- Desktop: layout más amplio y cómodo ---- */
+  @media (min-width: 768px){
+    main{padding:20px 32px; max-width:960px;}
+    .card{padding:20px;}
+    .tabs{margin-bottom:20px;}
+    .tab{padding:14px 20px; font-size:16px;}
+    .search-box{padding:16px; font-size:17px;}
+    .kpi-strip{gap:12px;}
+    .kpi{min-width:140px; padding:16px 20px;}
+    .kpi .num{font-size:28px;}
+    .kpi .lbl{font-size:13px;}
+    .kanban{gap:14px;}
+    .kanban-col{min-width:260px; padding:14px;}
+    table.inv td, table.inv th{padding:10px 14px;}
+    #login-screen input, #login-screen button{max-width:400px; padding:16px; font-size:17px;}
+  }
+  @media (min-width: 1200px){
+    main{max-width:1100px;}
+  }
+
+  .toast{
+    position:fixed; bottom:20px; left:50%; transform:translateX(-50%);
+    background:var(--navy); color:#fff; padding:12px 20px; border-radius:10px;
+    font-size:14px; opacity:0; transition:opacity .3s; z-index:100; max-width:90%; text-align:center;
+  }
+  .toast.show{opacity:1;}
+</style>
+</head>
+<body>
+
+<!-- ================= LOGIN ================= -->
+<div id="login-screen">
+  <div class="login-logo">
+    <svg width="60" height="40" viewBox="0 0 60 40" xmlns="http://www.w3.org/2000/svg">
+      <polygon points="0,20 12,6 12,14 24,0 24,8 12,22 12,14 0,28" fill="#009B9E"/>
+      <polygon points="0,28 12,14 12,22 24,8 24,16 12,30 12,22 0,36" fill="#007B7F"/>
+    </svg>
+    <h1>TRAZA·Equipos</h1>
+    <div class="subtitle">OCA Global · Delegación Cádiz</div>
+  </div>
+  <input type="email" id="login-email" placeholder="Correo electrónico" autocomplete="username">
+  <input type="password" id="login-password" placeholder="Contraseña" autocomplete="current-password">
+  <button onclick="hacerLogin()">Entrar</button>
+  <div id="login-error"></div>
+</div>
+
+<!-- ================= APP ================= -->
+<div id="app" style="display:none;">
+  <header>
+    <div class="brand">
+      <svg width="32" height="22" viewBox="0 0 60 40" xmlns="http://www.w3.org/2000/svg">
+        <polygon points="0,20 12,6 12,14 24,0 24,8 12,22 12,14 0,28" fill="#009B9E"/>
+        <polygon points="0,28 12,14 12,22 24,8 24,16 12,30 12,22 0,36" fill="#007B7F"/>
+      </svg>
+      TRAZA·Equipos
+    </div>
+    <div style="display:flex; align-items:center; gap:12px;">
+      <div class="user" id="user-name"></div>
+      <button onclick="cerrarSesion()" style="background:none; border:1px solid rgba(255,255,255,.3); color:#fff; border-radius:8px; padding:6px 12px; font-size:12px; cursor:pointer;">Salir</button>
+    </div>
+  </header>
+
+  <main>
+    <div class="tabs">
+      <div class="tab active" data-view="linea" onclick="cambiarTab('linea')">Mi línea</div>
+      <div class="tab" data-view="buscar" onclick="cambiarTab('buscar')">Buscar equipo</div>
+      <div class="tab" data-view="gestor" id="tab-gestor" style="display:none;" onclick="cambiarTab('gestor')">Panel Gestor</div>
+    </div>
+
+    <!-- VISTA: MI LÍNEA (unificada, Fase 7) -->
+    <div class="view active" id="view-linea">
+      <div id="linea-contenido"><div class="empty">Cargando...</div></div>
+      <button class="btn fungible-btn" onclick="abrirConsumoFungible()">+ Registrar consumo de fungible</button>
+    </div>
+
+    <!-- VISTA: BUSCAR EQUIPO -->
+    <div class="view" id="view-buscar">
+      <input type="text" class="search-box" id="buscar-input" placeholder="Ej. yugo magnético, medidor..." oninput="buscarEquipos()">
+      <div id="buscar-resultados"></div>
+      <div id="detalle-equipo"></div>
+    </div>
+
+    <!-- VISTA: PANEL GESTOR/DELEGADO -->
+    <div class="view" id="view-gestor">
+      <div class="kpi-strip" id="kpi-strip"></div>
+      <div class="subtabs">
+        <div class="subtab active" data-sub="solicitudes" onclick="cambiarSubtab('solicitudes')">Solicitudes</div>
+        <div class="subtab" data-sub="inventario" onclick="cambiarSubtab('inventario')">Inventario</div>
+        <div class="subtab" data-sub="calibraciones" onclick="cambiarSubtab('calibraciones')">Calibraciones</div>
+        <div class="subtab" data-sub="fungibles" onclick="cambiarSubtab('fungibles')">Fungibles</div>
+        <div class="subtab" data-sub="altaequipo" onclick="cambiarSubtab('altaequipo')">+ Equipo</div>
+        <div class="subtab" data-sub="altafungible" onclick="cambiarSubtab('altafungible')">+ Fungible</div>
+        <div class="subtab" data-sub="historico-fungibles" onclick="cambiarSubtab('historico-fungibles')">Histórico Fung.</div>
+      </div>
+
+      <div class="subview active" id="sub-solicitudes"><div class="empty">Cargando...</div></div>
+      <div class="subview" id="sub-inventario"><div class="empty">Cargando...</div></div>
+      <div class="subview" id="sub-calibraciones"><div class="empty">Cargando...</div></div>
+      <div class="subview" id="sub-fungibles"><div class="empty">Cargando...</div></div>
+      <div class="subview" id="sub-historico-fungibles"><div class="empty">Cargando...</div></div>
+
+      <!-- ALTA / EDICIÓN DE EQUIPO -->
+      <div class="subview" id="sub-altaequipo">
+        <div class="card">
+          <div class="card-title">Alta de equipo nuevo</div>
+          <div class="card-sub">También para equipos reparados que vuelven al inventario</div>
+          <select id="eq-tipo" class="search-box"><option value="">— Tipo de equipo —</option></select>
+          <input type="text" id="eq-tipo-nuevo" class="search-box" placeholder="O escribe un tipo nuevo aquí..." style="display:none;">
+          <button class="btn secondary" onclick="toggleTipoNuevo()" style="margin-bottom:8px;font-size:13px;" id="btn-tipo-toggle">¿Tipo nuevo? Crear</button>
+          <input type="text" id="eq-serie" class="search-box" placeholder="Nº serie / ID OCA *">
+          <input type="text" id="eq-marca" class="search-box" placeholder="Marca (opcional)">
+          <input type="date" id="eq-fcalib" class="search-box" placeholder="Fecha última calibración">
+          <label style="font-size:13px;color:var(--muted);margin:-6px 0 4px 4px;display:block;">Fecha última calibración</label>
+          <input type="date" id="eq-fvenc" class="search-box" placeholder="Fecha vencimiento calibración">
+          <label style="font-size:13px;color:var(--muted);margin:-6px 0 4px 4px;display:block;">Fecha vencimiento calibración</label>
+          <input type="text" id="eq-ubicacion" class="search-box" placeholder="Ubicación (ej. Almacén, Furgoneta...)">
+          <button class="btn primary" onclick="altaEquipo()">Dar de alta</button>
+        </div>
+
+        <div class="card" style="margin-top:14px;">
+          <div class="card-title">Editar equipo existente</div>
+          <div class="card-sub">Actualizar calibración, marca, estado o ubicación</div>
+          <input type="text" id="edit-buscar" class="search-box" placeholder="Buscar por nº serie o nombre..." oninput="buscarParaEditar()">
+          <div id="edit-resultados"></div>
+          <div id="edit-formulario"></div>
+        </div>
+      </div>
+
+      <!-- ALTA / GESTIÓN DE FUNGIBLES -->
+      <div class="subview" id="sub-altafungible">
+        <div class="card">
+          <div class="card-title">Dar de alta fungible nuevo</div>
+          <div class="card-sub">Placas, líquidos, partículas, penetrantes...</div>
+          <input type="text" id="fg-nombre" class="search-box" placeholder="Nombre (ej. Placas D5 30x40) *">
+          <input type="text" id="fg-unidad" class="search-box" placeholder="Unidad de medida (ej. unidades, litros, botes) *">
+          <input type="number" id="fg-stock" class="search-box" placeholder="Stock actual *" min="0" step="0.1">
+          <input type="number" id="fg-pedido" class="search-box" placeholder="Punto de pedido (alarma) *" min="0" step="0.1">
+          <input type="text" id="fg-proveedor" class="search-box" placeholder="Proveedor habitual (opcional)">
+          <button class="btn primary" onclick="altaFungible()">Dar de alta</button>
+        </div>
+
+        <div class="card" style="margin-top:14px;">
+          <div class="card-title">Reponer stock de fungible existente</div>
+          <div class="card-sub">Entrada de material nuevo al almacén</div>
+          <select id="fg-reponer-sel" class="search-box"><option value="">— Seleccionar fungible —</option></select>
+          <input type="number" id="fg-reponer-cant" class="search-box" placeholder="Cantidad recibida" min="0" step="0.1">
+          <button class="btn primary" onclick="reponerFungible()">Registrar reposición</button>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ============================================================
+// CONFIGURACIÓN — sustituir por los valores reales del proyecto
+// ============================================================
+const SUPABASE_URL = "https://pjsdgkxwlyirpkkwjuyk.supabase.co";
+const SUPABASE_ANON_KEY = "sb_publishable_mnk3Mw4buuvtPxI_nrnqpA_-c-I7VcQ";
+
+const { createClient } = supabase;
+const db = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+let usuarioActual = null;
+
+// ------------------------------------------------------------
+// LOGIN
+// ------------------------------------------------------------
+async function hacerLogin(){
+  const email = document.getElementById('login-email').value.trim();
+  const password = document.getElementById('login-password').value;
+  const errorBox = document.getElementById('login-error');
+  errorBox.textContent = "";
+
+  const { data, error } = await db.auth.signInWithPassword({ email, password });
+  if(error){
+    errorBox.textContent = "No se pudo entrar. Revisa el correo y la contraseña.";
+    return;
+  }
+  await cargarUsuario();
+}
+
+async function cargarUsuario(){
+  const { data: { user } } = await db.auth.getUser();
+  if(!user) return;
+
+  const { data: perfil } = await db.from('usuarios').select('*').eq('id', user.id).single();
+  usuarioActual = perfil;
+
+  document.getElementById('login-screen').style.display = 'none';
+  document.getElementById('app').style.display = 'block';
+  document.getElementById('user-name').textContent = perfil.nombre_completo;
+
+  if(perfil.rol === 'gestor' || perfil.rol === 'delegado'){
+    document.getElementById('tab-gestor').style.display = 'block';
+  }
+
+  cargarMiLinea();
+}
+
+async function cerrarSesion(){
+  await db.auth.signOut();
+  location.reload();
+}
+
+// Comprobar sesión activa al cargar la página
+(async () => {
+  const { data: { session } } = await db.auth.getSession();
+  if(session) await cargarUsuario();
+})();
+
+// ------------------------------------------------------------
+// NAVEGACIÓN
+// ------------------------------------------------------------
+function cambiarTab(vista){
+  document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.view === vista));
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  document.getElementById('view-' + vista).classList.add('active');
+  if(vista === 'linea') cargarMiLinea();
+  if(vista === 'gestor') cargarPanelGestor();
+}
+
+function cambiarSubtab(sub){
+  document.querySelectorAll('.subtab').forEach(t => t.classList.toggle('active', t.dataset.sub === sub));
+  document.querySelectorAll('.subview').forEach(v => v.classList.remove('active'));
+  document.getElementById('sub-' + sub).classList.add('active');
+  if(sub === 'inventario') cargarInventario();
+  if(sub === 'calibraciones') cargarCalibraciones();
+  if(sub === 'fungibles') cargarFungibles();
+  if(sub === 'historico-fungibles') cargarHistoricoFungibles();
+  if(sub === 'solicitudes') cargarSolicitudesVivo();
+  if(sub === 'altaequipo') cargarSelectorTipos();
+  if(sub === 'altafungible') cargarSelectorFungibles();
+}
+
+// ------------------------------------------------------------
+// ALTA Y EDICIÓN DE EQUIPOS (Gestor)
+// ------------------------------------------------------------
+async function cargarSelectorTipos(){
+  const { data } = await db.from('tipos_equipo').select('id, nombre').order('nombre');
+  const sel = document.getElementById('eq-tipo');
+  sel.innerHTML = '<option value="">— Tipo de equipo —</option>' +
+    (data||[]).map(t => `<option value="${t.id}">${t.nombre}</option>`).join('');
+}
+
+function toggleTipoNuevo(){
+  const inp = document.getElementById('eq-tipo-nuevo');
+  const sel = document.getElementById('eq-tipo');
+  const btn = document.getElementById('btn-tipo-toggle');
+  if(inp.style.display === 'none'){
+    inp.style.display = 'block'; sel.style.display = 'none';
+    btn.textContent = 'Usar tipo existente';
+  } else {
+    inp.style.display = 'none'; sel.style.display = 'block';
+    btn.textContent = '¿Tipo nuevo? Crear';
+  }
+}
+
+async function altaEquipo(){
+  let tipoId = document.getElementById('eq-tipo').value;
+  const tipoNuevo = document.getElementById('eq-tipo-nuevo').value.trim();
+  const serie = document.getElementById('eq-serie').value.trim();
+  const marca = document.getElementById('eq-marca').value.trim() || null;
+  const fCalib = document.getElementById('eq-fcalib').value || null;
+  const fVenc = document.getElementById('eq-fvenc').value || null;
+  const ubi = document.getElementById('eq-ubicacion').value.trim() || 'Almacén';
+
+  if(!serie){ mostrarToast('El nº de serie es obligatorio.'); return; }
+
+  if(tipoNuevo && !tipoId){
+    const { data: nuevoTipo, error: errTipo } = await db.from('tipos_equipo')
+      .insert({ nombre: tipoNuevo, categoria: 'medida_calibrable', requiere_calibracion: true })
+      .select().single();
+    if(errTipo){ mostrarToast('Error al crear tipo: ' + errTipo.message); return; }
+    tipoId = nuevoTipo.id;
+  }
+  if(!tipoId){ mostrarToast('Selecciona o crea un tipo de equipo.'); return; }
+
+  const { data: deleg } = await db.from('delegaciones').select('id').limit(1).single();
+  const { error } = await db.from('equipos').insert({
+    tipo_equipo_id: tipoId, nº_serie: serie, marca, estado: 'disponible',
+    delegacion_propietaria_id: deleg.id, delegacion_actual_id: deleg.id,
+    fecha_ultima_calibracion: fCalib, fecha_vencimiento_calibracion: fVenc,
+    ubicacion_texto: ubi
+  });
+  if(error){ mostrarToast('Error: ' + error.message); return; }
+
+  await db.from('movimientos').insert({
+    equipo_id: (await db.from('equipos').select('id').eq('nº_serie', serie).single()).data.id,
+    usuario_id: usuarioActual.id, accion: 'alta', detalle: 'Alta desde Panel Gestor'
+  });
+
+  mostrarToast('Equipo dado de alta correctamente.');
+  ['eq-serie','eq-marca','eq-fcalib','eq-fvenc','eq-ubicacion','eq-tipo-nuevo'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('eq-tipo').value = '';
+  cargarSelectorTipos();
+}
+
+async function buscarParaEditar(){
+  const termino = document.getElementById('edit-buscar').value.trim();
+  document.getElementById('edit-formulario').innerHTML = '';
+  if(termino.length < 2){ document.getElementById('edit-resultados').innerHTML = ''; return; }
+
+  const { data } = await db.from('equipos')
+    .select('id, nº_serie, estado, marca, fecha_ultima_calibracion, fecha_vencimiento_calibracion, ubicacion_texto, tipos_equipo(nombre)')
+    .or(`nº_serie.ilike.%${termino}%`)
+    .limit(10);
+
+  if(!data || data.length === 0){
+    // Try by type name
+    const { data: data2 } = await db.rpc('buscar_equipos_por_tipo', { termino });
+    if(!data2 || data2.length === 0){
+      document.getElementById('edit-resultados').innerHTML = '<div class="empty">Sin resultados.</div>';
+      return;
+    }
+    document.getElementById('edit-resultados').innerHTML = '<div class="card">' +
+      data2.map(e => `<div class="result-row" onclick="abrirEdicion('${e.id}')"><span>${e.nombre_tipo} — ${e.nº_serie}</span><span class="badge info">${e.estado}</span></div>`).join('') + '</div>';
+    return;
+  }
+
+  document.getElementById('edit-resultados').innerHTML = '<div class="card">' +
+    data.map(e => `<div class="result-row" onclick="abrirEdicion('${e.id}')"><span>${e.tipos_equipo?.nombre||''} — ${e.nº_serie}</span><span class="badge info">${e.estado}</span></div>`).join('') + '</div>';
+}
+
+async function abrirEdicion(equipoId){
+  document.getElementById('edit-resultados').innerHTML = '';
+  const { data: e } = await db.from('equipos')
+    .select('id, nº_serie, estado, marca, fecha_ultima_calibracion, fecha_vencimiento_calibracion, ubicacion_texto, tipos_equipo(nombre)')
+    .eq('id', equipoId).single();
+  if(!e) return;
+
+  document.getElementById('edit-formulario').innerHTML = `
+    <div class="card" style="margin-top:10px; border-left:4px solid var(--accent);">
+      <div class="card-title">${e.tipos_equipo?.nombre||'Equipo'} — ${e.nº_serie}</div>
+      <input type="text" class="search-box" id="ed-marca" value="${e.marca||''}" placeholder="Marca">
+      <label style="font-size:13px;color:var(--muted);margin:-6px 0 4px 4px;display:block;">Última calibración</label>
+      <input type="date" class="search-box" id="ed-fcalib" value="${e.fecha_ultima_calibracion||''}">
+      <label style="font-size:13px;color:var(--muted);margin:-6px 0 4px 4px;display:block;">Vencimiento calibración</label>
+      <input type="date" class="search-box" id="ed-fvenc" value="${e.fecha_vencimiento_calibracion||''}">
+      <input type="text" class="search-box" id="ed-ubicacion" value="${e.ubicacion_texto||''}" placeholder="Ubicación">
+      <select class="search-box" id="ed-estado">
+        <option value="disponible" ${e.estado==='disponible'?'selected':''}>Disponible</option>
+        <option value="en_uso" ${e.estado==='en_uso'?'selected':''}>En uso</option>
+        <option value="en_calibracion" ${e.estado==='en_calibracion'?'selected':''}>En calibración</option>
+        <option value="averiado" ${e.estado==='averiado'?'selected':''}>Averiado</option>
+        <option value="baja" ${e.estado==='baja'?'selected':''}>Baja</option>
+      </select>
+      <button class="btn primary" onclick="guardarEdicion('${e.id}')">Guardar cambios</button>
+    </div>`;
+}
+
+async function guardarEdicion(equipoId){
+  const updates = {
+    marca: document.getElementById('ed-marca').value.trim() || null,
+    fecha_ultima_calibracion: document.getElementById('ed-fcalib').value || null,
+    fecha_vencimiento_calibracion: document.getElementById('ed-fvenc').value || null,
+    ubicacion_texto: document.getElementById('ed-ubicacion').value.trim() || null,
+    estado: document.getElementById('ed-estado').value,
+  };
+  const { error } = await db.from('equipos').update(updates).eq('id', equipoId);
+  if(error){ mostrarToast('Error al guardar: ' + error.message); return; }
+
+  await db.from('movimientos').insert({
+    equipo_id: equipoId, usuario_id: usuarioActual.id, accion: 'calibrado',
+    detalle: 'Editado desde Panel Gestor'
+  });
+  mostrarToast('Equipo actualizado.');
+  document.getElementById('edit-formulario').innerHTML = '';
+  document.getElementById('edit-buscar').value = '';
+}
+
+// ------------------------------------------------------------
+// ALTA Y REPOSICIÓN DE FUNGIBLES (Gestor)
+// ------------------------------------------------------------
+async function cargarSelectorFungibles(){
+  const { data } = await db.from('fungibles').select('id, unidad_medida, tipos_equipo(nombre)').order('id');
+  const sel = document.getElementById('fg-reponer-sel');
+  sel.innerHTML = '<option value="">— Seleccionar fungible —</option>' +
+    (data||[]).map(f => `<option value="${f.id}">${f.tipos_equipo?.nombre||'Fungible'} (${f.unidad_medida})</option>`).join('');
+}
+
+async function altaFungible(){
+  const nombre = document.getElementById('fg-nombre').value.trim();
+  const unidad = document.getElementById('fg-unidad').value.trim();
+  const stock = parseFloat(document.getElementById('fg-stock').value);
+  const pedido = parseFloat(document.getElementById('fg-pedido').value);
+  const proveedor = document.getElementById('fg-proveedor').value.trim() || null;
+
+  if(!nombre || !unidad || isNaN(stock) || isNaN(pedido)){
+    mostrarToast('Rellena todos los campos obligatorios (*).'); return;
+  }
+
+  const { data: tipoExist } = await db.from('tipos_equipo').select('id').eq('nombre', nombre).single();
+  let tipoId;
+  if(tipoExist){ tipoId = tipoExist.id; }
+  else {
+    const { data: nuevoTipo } = await db.from('tipos_equipo')
+      .insert({ nombre, categoria: 'fungible', requiere_calibracion: false })
+      .select().single();
+    tipoId = nuevoTipo.id;
+  }
+
+  const { data: deleg } = await db.from('delegaciones').select('id').limit(1).single();
+  const { error } = await db.from('fungibles').insert({
+    tipo_equipo_id: tipoId, unidad_medida: unidad, stock_actual: stock,
+    punto_pedido: pedido, delegacion_id: deleg.id, proveedor_habitual: proveedor
+  });
+  if(error){ mostrarToast('Error: ' + error.message); return; }
+
+  mostrarToast('Fungible dado de alta.');
+  ['fg-nombre','fg-unidad','fg-stock','fg-pedido','fg-proveedor'].forEach(id => document.getElementById(id).value = '');
+  cargarSelectorFungibles();
+}
+
+async function reponerFungible(){
+  const fungibleId = document.getElementById('fg-reponer-sel').value;
+  const cantidad = parseFloat(document.getElementById('fg-reponer-cant').value);
+  if(!fungibleId || isNaN(cantidad) || cantidad <= 0){
+    mostrarToast('Selecciona un fungible e indica la cantidad.'); return;
+  }
+
+  await db.from('fungibles').update({ stock_actual: db.rpc ? undefined : 0 }).eq('id', fungibleId);
+  const { data: current } = await db.from('fungibles').select('stock_actual').eq('id', fungibleId).single();
+  await db.from('fungibles').update({ stock_actual: current.stock_actual + cantidad }).eq('id', fungibleId);
+
+  await db.from('movimientos_fungibles').insert({
+    fungible_id: fungibleId, usuario_id: usuarioActual.id, tipo: 'reposicion', cantidad
+  });
+
+  mostrarToast('Stock repuesto correctamente.');
+  document.getElementById('fg-reponer-cant').value = '';
+  cargarSelectorFungibles();
+}
+
+// ------------------------------------------------------------
+// PANEL GESTOR/DELEGADO (Bloque 5)
+// ------------------------------------------------------------
+async function cargarPanelGestor(){
+  await cargarKPIs();
+  await cargarSolicitudesVivo();
+}
+
+async function cargarKPIs(){
+  const [{ count: disponibles }, { count: enUso }, { count: bloqueadasHoy }, { data: todosEquipos }, { data: fungibles }] = await Promise.all([
+    db.from('equipos').select('*', { count: 'exact', head: true }).eq('estado','disponible'),
+    db.from('equipos').select('*', { count: 'exact', head: true }).eq('estado','en_uso'),
+    db.from('solicitudes').select('*', { count: 'exact', head: true }).eq('estado','bloqueada'),
+    db.from('equipos').select('fecha_vencimiento_calibracion').not('fecha_vencimiento_calibracion','is',null),
+    db.from('fungibles').select('stock_actual, punto_pedido'),
+  ]);
+
+  const hoy = new Date();
+  let vencidos = 0, menos7 = 0, menos30 = 0;
+  (todosEquipos||[]).forEach(e => {
+    const dias = Math.ceil((new Date(e.fecha_vencimiento_calibracion) - hoy)/86400000);
+    if(dias < 0) vencidos++;
+    else if(dias <= 7) menos7++;
+    else if(dias <= 30) menos30++;
+  });
+  const calibTotal = vencidos + menos7 + menos30;
+  const fungiblesBajo = (fungibles||[]).filter(f => f.stock_actual <= f.punto_pedido).length;
+
+  document.getElementById('kpi-strip').innerHTML = `
+    <div class="kpi"><div class="num">${disponibles||0}</div><div class="lbl">Disponibles</div></div>
+    <div class="kpi"><div class="num">${enUso||0}</div><div class="lbl">En uso</div></div>
+    <div class="kpi"><div class="num" style="color:${bloqueadasHoy>0?'var(--bad)':'inherit'}">${bloqueadasHoy||0}</div><div class="lbl">Bloqueadas</div></div>
+    <div class="kpi"><div class="num" style="color:${vencidos>0?'var(--bad)':calibTotal>0?'var(--warn)':'inherit'}">${calibTotal}</div><div class="lbl">Calib. alerta</div></div>
+    <div class="kpi"><div class="num" style="color:${fungiblesBajo>0?'var(--bad)':'inherit'}">${fungiblesBajo}</div><div class="lbl">Fungibles bajos</div></div>
+  `;
+}
+
+async function cargarSolicitudesVivo(){
+  const { data, error } = await db
+    .from('solicitudes')
+    .select(`
+      id, estado, fecha_solicitud, fecha_entrega, equipo_id,
+      equipos(nº_serie, tipos_equipo(id, nombre)),
+      solicitante:usuarios!tecnico_solicitante_id(nombre_completo),
+      poseedor:usuarios!tecnico_poseedor_id(nombre_completo)
+    `)
+    .in('estado', ['pendiente','entregado','bloqueada'])
+    .order('fecha_solicitud', { ascending: false });
+
+  if(error) console.error('Error cargando solicitudes:', error.message);
+
+  const cols = { pendiente: [], entregado: [], bloqueada: [] };
+  (data||[]).forEach(s => { if(cols[s.estado]) cols[s.estado].push(s); });
+
+  const tarjeta = (s) => {
+    const destino = s.poseedor?.nombre_completo || 'Almacén';
+    const botonAlternativa = s.estado === 'bloqueada'
+      ? `<button class="btn secondary" style="margin-top:6px;width:100%;font-size:12px;padding:6px;"
+           onclick="buscarAlternativa('${s.id}','${s.equipo_id}','${s.equipos?.tipos_equipo?.id||''}','${(s.equipos?.tipos_equipo?.nombre||'').replace(/'/g,'')}')">Buscar alternativa</button>`
+      : '';
+    const fechaEntrega = (s.estado === 'entregado' && s.fecha_entrega)
+      ? `<div>🕒 Entrega sin confirmar desde: <strong>${new Date(s.fecha_entrega).toLocaleString('es-ES', {day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'})}</strong></div>`
+      : '';
+    const nombreConfirmador = s.solicitante?.nombre_completo || 'el solicitante';
+    const avisoSinConfirmar = s.estado === 'entregado'
+      ? `<span class="badge warn" style="margin-top:4px;display:inline-block;">⚠ Sin confirmar por ${nombreConfirmador}</span>
+         <button class="btn secondary" style="margin-top:6px;width:100%;font-size:12px;padding:6px;"
+           onclick="enviarRecordatorio('${s.id}','${s.equipo_id}','${nombreConfirmador.replace(/'/g,'')}')">Enviar recordatorio</button>`
+      : '';
+    return `<div class="kanban-card">
+      <strong>${s.equipos?.tipos_equipo?.nombre||''}</strong><br>
+      <span style="color:var(--muted);font-size:11px">${s.equipos?.nº_serie||'—'}</span>
+      <div style="margin-top:6px;font-size:11px;line-height:1.5;">
+        <div>👤 Solicita: <strong>${s.solicitante?.nombre_completo || '—'}</strong></div>
+        <div>➡️ A: <strong>${destino}</strong></div>
+        ${fechaEntrega}
+        ${avisoSinConfirmar}
+      </div>
+      ${botonAlternativa}
+    </div>`;
+  };
+
+  const col = (titulo, items) => `
+    <div class="kanban-col">
+      <h4>${titulo} (${items.length})</h4>
+      ${items.map(tarjeta).join('') || '<div class="kanban-card" style="color:#999">Sin elementos</div>'}
+    </div>`;
+
+  document.getElementById('sub-solicitudes').innerHTML = `
+    <div class="kanban">
+      ${col('Pendiente', cols.pendiente)}
+      ${col('Esperando confirmación', cols.entregado)}
+      ${col('Bloqueada', cols.bloqueada)}
+    </div>`;
+}
+
+// ------------------------------------------------------------
+// RESOLUCIÓN DE SOLICITUDES BLOQUEADAS (Gestor busca alternativa)
+// ------------------------------------------------------------
+async function buscarAlternativa(solicitudId, equipoOriginalId, tipoId, tipoNombre){
+  if(!tipoId){ mostrarToast('No se pudo determinar el tipo de equipo.'); return; }
+
+  const { data: alternativas, error } = await db
+    .from('equipos')
+    .select('id, nº_serie, estado, usuarios(nombre_completo)')
+    .eq('tipo_equipo_id', tipoId)
+    .neq('id', equipoOriginalId)
+    .in('estado', ['disponible','en_uso']);
+
+  if(error){ mostrarToast('Error al buscar alternativas: ' + error.message); return; }
+  if(!alternativas || alternativas.length === 0){
+    mostrarToast('No hay otra unidad de este tipo disponible ni asignada a otro técnico.');
+    return;
+  }
+
+  const opciones = alternativas.map(e => {
+    const enAlmacen = e.estado === 'disponible';
+    const etiqueta = enAlmacen ? 'Almacén' : (e.usuarios?.nombre_completo || 'Otro técnico');
+    return `<div class="fungible-opcion" onclick="${enAlmacen ? `resolverDesdeAlmacen('${solicitudId}','${e.id}')` : `pedirConfirmacionTecnico('${solicitudId}','${e.id}','${(e.usuarios?.nombre_completo||'Otro técnico').replace(/'/g,'')}')`}">
+      <strong>${e.nº_serie}</strong>
+      <div style="font-size:12px;color:var(--muted);">${enAlmacen ? 'Disponible en Almacén — asignar directamente' : 'La tiene: ' + etiqueta + ' — pedirle que la entregue'}</div>
+    </div>`;
+  }).join('');
+
+  document.getElementById('modal-root').innerHTML = `
+    <div class="modal-overlay" onclick="if(event.target===this) cerrarModalFungible()">
+      <div class="modal-box">
+        <h3>Alternativas para ${tipoNombre}</h3>
+        <div>${opciones}</div>
+        <button class="btn" style="margin-top:10px;width:100%;" onclick="cerrarModalFungible()">Cancelar</button>
+      </div>
+    </div>`;
+}
+
+async function resolverDesdeAlmacen(solicitudBloqueadaId, equipoAlmacenId){
+  if(!confirm('¿Confirmas asignar esta unidad de almacén directamente al solicitante?')) return;
+  const { error } = await db.rpc('asignar_desde_almacen_gestor', {
+    p_solicitud_bloqueada_id: solicitudBloqueadaId, p_equipo_almacen_id: equipoAlmacenId
+  });
+  if(error){ mostrarToast('Error al asignar: ' + error.message); return; }
+  mostrarToast('Equipo asignado desde almacén.');
+  cerrarModalFungible();
+  cargarSolicitudesVivo();
+}
+
+function pedirConfirmacionTecnico(solicitudBloqueadaId, equipoId, nombreTecnico){
+  if(!confirm(`¿Confirmas pedirle a ${nombreTecnico} que entregue esta unidad al solicitante?`)) return;
+  resolverConTecnico(solicitudBloqueadaId, equipoId);
+}
+
+async function resolverConTecnico(solicitudBloqueadaId, equipoId){
+  const { data: eq } = await db.from('equipos').select('tecnico_actual_id').eq('id', equipoId).single();
+  if(!eq?.tecnico_actual_id){ mostrarToast('No se pudo identificar al técnico actual.'); return; }
+
+  const { error } = await db.rpc('crear_solicitud_gestor', {
+    p_solicitud_bloqueada_id: solicitudBloqueadaId,
+    p_equipo_id: equipoId,
+    p_tecnico_poseedor_id: eq.tecnico_actual_id
+  });
+  if(error){ mostrarToast('Error al reasignar: ' + error.message); return; }
+  mostrarToast('Nueva solicitud enviada al técnico.');
+  cerrarModalFungible();
+  cargarSolicitudesVivo();
+}
+
+async function enviarRecordatorio(solicitudId, equipoId, nombreReceptor){
+  if(!confirm(`¿Enviar un recordatorio por Telegram a ${nombreReceptor} para que confirme la recepción?`)) return;
+  const { error } = await db.rpc('enviar_recordatorio_confirmacion', { p_solicitud_id: solicitudId });
+  if(error){ mostrarToast('Error al enviar recordatorio: ' + error.message); return; }
+  const { error: errMov } = await db.from('movimientos').insert({
+    equipo_id: equipoId, solicitud_id: solicitudId, usuario_id: usuarioActual.id,
+    accion: 'recordatorio_confirmacion', detalle: `Recordatorio Telegram enviado a ${nombreReceptor}`
+  });
+  if(errMov) console.error('Error registrando recordatorio en movimientos:', errMov.message);
+  mostrarToast(`Recordatorio enviado a ${nombreReceptor} por Telegram.`);
+}
+
+let inventarioDataCompleta = [];
+let inventarioOrigenMap = {};
+let inventarioEntregadosEsperando = new Set();
+
+async function cargarInventario(){
+  const { data } = await db
+    .from('equipos')
+    .select('id, nº_serie, estado, marca, ubicacion_texto, observaciones, fecha_ultima_calibracion, fecha_vencimiento_calibracion, tipos_equipo(nombre), usuarios(nombre_completo)')
+    .neq('estado','baja')
+    .order('nº_serie');
+
+  inventarioDataCompleta = data || [];
+
+  const { data: entregadosSinConfirmar, error: errEntregados } = await db
+    .from('solicitudes')
+    .select('equipo_id')
+    .eq('estado', 'entregado');
+  if(errEntregados) console.error('Error cargando entregas sin confirmar:', errEntregados.message);
+  inventarioEntregadosEsperando = new Set((entregadosSinConfirmar||[]).map(s => s.equipo_id));
+
+  const idsAsignados = inventarioDataCompleta
+    .filter(e => e.estado === 'en_uso' || e.estado === 'solicitud_pendiente' || e.estado === 'solicitud_bloqueada')
+    .map(e => e.id);
+
+  inventarioOrigenMap = {};
+  if(idsAsignados.length){
+    const { data: movs, error: errMovs } = await db
+      .from('movimientos')
+      .select('equipo_id, accion, timestamp, solicitudes(usuarios!tecnico_poseedor_id(nombre_completo))')
+      .in('equipo_id', idsAsignados)
+      .in('accion', ['recibido','recogida_almacen'])
+      .order('timestamp', { ascending: false });
+    if(errMovs) console.error('Error cargando origen de equipos:', errMovs.message);
+    (movs||[]).forEach(m => {
+      if(inventarioOrigenMap[m.equipo_id]) return;
+      inventarioOrigenMap[m.equipo_id] = m.accion === 'recogida_almacen'
+        ? 'Almacén'
+        : (m.solicitudes?.usuarios?.nombre_completo || 'Otro técnico');
+    });
+  }
+
+  const tiposUnicos = [...new Set(inventarioDataCompleta.map(e => e.tipos_equipo?.nombre).filter(Boolean))].sort();
+  const opcionesTipo = tiposUnicos.map(t => `<option value="${t}">${t}</option>`).join('');
+
+  document.getElementById('sub-inventario').innerHTML = `
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;">
+      <select class="search-box" id="filtro-inv-tipo" style="max-width:220px;" onchange="filtrarInventario()">
+        <option value="">Todos los tipos</option>
+        ${opcionesTipo}
+      </select>
+      <select class="search-box" id="filtro-inv-estado" style="max-width:200px;" onchange="filtrarInventario()">
+        <option value="">Todos los estados</option>
+        <option value="disponible">Disponible</option>
+        <option value="en_uso">En uso</option>
+        <option value="en_calibracion">En calibración</option>
+        <option value="averiado">Averiado</option>
+      </select>
+    </div>
+    <div style="color:var(--muted);font-size:12px;margin-bottom:8px;">Haz clic en cualquier fila para editarla</div>
+    <div id="inventario-edicion"></div>
+    <div style="overflow-x:auto;">
+      <table class="inv" id="tabla-inventario">
+        <tr><th>Nº Serie</th><th>Tipo</th><th>Marca</th><th>Estado</th><th>Poseedor</th><th>Recibido de</th><th>Observaciones</th><th>Venc. Calib.</th></tr>
+      </table>
+    </div>
+    <div style="color:var(--muted);font-size:12px;margin-top:8px;" id="inventario-total"></div>`;
+
+  renderTablaInventario(inventarioDataCompleta);
+}
+
+function filtrarInventario(){
+  const tipo = document.getElementById('filtro-inv-tipo').value;
+  const estado = document.getElementById('filtro-inv-estado').value;
+  const filtrada = inventarioDataCompleta.filter(e => {
+    if(tipo && e.tipos_equipo?.nombre !== tipo) return false;
+    if(!estado) return true;
+    if(estado === 'en_uso') return ['en_uso','solicitud_pendiente','solicitud_bloqueada'].includes(e.estado);
+    return e.estado === estado;
+  });
+  renderTablaInventario(filtrada);
+}
+
+function renderTablaInventario(lista){
+  const filas = (lista||[]).map(e => {
+    let badgeCls = 'info', badgeTxt = e.estado;
+    if(e.estado === 'disponible'){ badgeCls='ok'; badgeTxt='Almacén'; }
+    else if(e.estado === 'averiado'){ badgeCls='bad'; badgeTxt='Averiado'; }
+    else if(e.estado === 'en_calibracion'){ badgeCls='warn'; badgeTxt='En calibración'; }
+    else if(e.estado === 'solicitud_pendiente'){
+      badgeCls='warn';
+      badgeTxt = inventarioEntregadosEsperando.has(e.id)
+        ? (e.usuarios?.nombre_completo || 'Asignado') + ' (entregado, sin confirmar)'
+        : (e.usuarios?.nombre_completo || 'Asignado') + ' (solicitud pendiente)';
+    }
+    else if(e.estado === 'solicitud_bloqueada'){ badgeCls='bad'; badgeTxt = (e.usuarios?.nombre_completo || 'Asignado') + ' (bloqueada — ver Solicitudes)'; }
+    else if(e.estado === 'en_uso'){ badgeCls='info'; badgeTxt = e.usuarios?.nombre_completo || 'Asignado'; }
+    return `<tr onclick="editarDesdeInventario('${e.id}')" style="cursor:pointer;" title="Clic para editar">
+      <td><strong>${e.nº_serie}</strong></td>
+      <td>${e.tipos_equipo?.nombre||'—'}</td>
+      <td>${e.marca||'—'}</td>
+      <td><span class="badge ${badgeCls}">${badgeTxt}</span></td>
+      <td>${e.usuarios?.nombre_completo || 'Almacén'}</td>
+      <td style="font-size:11px;color:var(--muted);">${(e.estado==='en_uso'||e.estado==='solicitud_pendiente'||e.estado==='solicitud_bloqueada') ? (inventarioOrigenMap[e.id]||'—') : '—'}</td>
+      <td style="max-width:160px;font-size:12px;">${e.observaciones||'—'}</td>
+      <td style="font-size:11px;color:var(--muted);">${e.fecha_vencimiento_calibracion||'—'}</td>
+    </tr>`;
+  }).join('');
+
+  document.getElementById('tabla-inventario').innerHTML = `
+    <tr><th>Nº Serie</th><th>Tipo</th><th>Marca</th><th>Estado</th><th>Poseedor</th><th>Recibido de</th><th>Observaciones</th><th>Venc. Calib.</th></tr>
+    ${filas || '<tr><td colspan="8" class="empty">Sin equipos que coincidan con el filtro.</td></tr>'}`;
+  document.getElementById('inventario-total').textContent = `Total: ${(lista||[]).length} equipos`;
+}
+
+async function editarDesdeInventario(equipoId){
+  const { data: e } = await db.from('equipos')
+    .select('id, nº_serie, estado, marca, fecha_ultima_calibracion, fecha_vencimiento_calibracion, ubicacion_texto, observaciones, tipos_equipo(nombre)')
+    .eq('id', equipoId).single();
+  if(!e) return;
+
+  const cont = document.getElementById('inventario-edicion');
+  cont.innerHTML = `
+    <div class="card" style="border-left:4px solid var(--accent); margin-bottom:14px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <div class="card-title">${e.tipos_equipo?.nombre||'Equipo'} — ${e.nº_serie}</div>
+        <span onclick="document.getElementById('inventario-edicion').innerHTML=''" style="cursor:pointer;font-size:20px;color:var(--muted);">✕</span>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+        <div>
+          <label style="font-size:12px;color:var(--muted);">Marca</label>
+          <input type="text" class="search-box" id="inv-marca" value="${e.marca||''}" placeholder="Marca">
+        </div>
+        <div>
+          <label style="font-size:12px;color:var(--muted);">Ubicación</label>
+          <input type="text" class="search-box" id="inv-ubicacion" value="${e.ubicacion_texto||''}" placeholder="Ubicación">
+        </div>
+        <div>
+          <label style="font-size:12px;color:var(--muted);">Última calibración</label>
+          <input type="date" class="search-box" id="inv-fcalib" value="${e.fecha_ultima_calibracion||''}">
+        </div>
+        <div>
+          <label style="font-size:12px;color:var(--muted);">Vencimiento calibración</label>
+          <input type="date" class="search-box" id="inv-fvenc" value="${e.fecha_vencimiento_calibracion||''}">
+        </div>
+      </div>
+      <div>
+        <label style="font-size:12px;color:var(--muted);">Estado</label>
+        <select class="search-box" id="inv-estado">
+          <option value="disponible" ${e.estado==='disponible'?'selected':''}>Disponible</option>
+          <option value="en_uso" ${e.estado==='en_uso'?'selected':''}>En uso</option>
+          <option value="en_calibracion" ${e.estado==='en_calibracion'?'selected':''}>En calibración</option>
+          <option value="averiado" ${e.estado==='averiado'?'selected':''}>Averiado</option>
+          <option value="baja" ${e.estado==='baja'?'selected':''}>Baja</option>
+        </select>
+      </div>
+      <div>
+        <label style="font-size:12px;color:var(--muted);">Observaciones</label>
+        <textarea class="search-box" id="inv-obs" rows="2" placeholder="Escribe observaciones...">${e.observaciones||''}</textarea>
+      </div>
+      <button class="btn primary" onclick="guardarDesdeInventario('${e.id}')">Guardar cambios</button>
+    </div>`;
+  cont.scrollIntoView({ behavior: 'smooth' });
+}
+
+async function guardarDesdeInventario(equipoId){
+  const updates = {
+    marca: document.getElementById('inv-marca').value.trim() || null,
+    ubicacion_texto: document.getElementById('inv-ubicacion').value.trim() || null,
+    fecha_ultima_calibracion: document.getElementById('inv-fcalib').value || null,
+    fecha_vencimiento_calibracion: document.getElementById('inv-fvenc').value || null,
+    estado: document.getElementById('inv-estado').value,
+    observaciones: document.getElementById('inv-obs').value.trim() || null,
+  };
+  const { error } = await db.from('equipos').update(updates).eq('id', equipoId);
+  if(error){ mostrarToast('Error: ' + error.message); return; }
+
+  await db.from('movimientos').insert({
+    equipo_id: equipoId, usuario_id: usuarioActual.id, accion: 'calibrado',
+    detalle: 'Editado desde inventario'
+  });
+  mostrarToast('Equipo actualizado.');
+  document.getElementById('inventario-edicion').innerHTML = '';
+  cargarInventario();
+}
+
+async function cargarCalibraciones(){
+  const { data } = await db
+    .from('equipos')
+    .select('id, nº_serie, marca, fecha_ultima_calibracion, fecha_vencimiento_calibracion, tipos_equipo(nombre), usuarios(nombre_completo)')
+    .not('fecha_vencimiento_calibracion','is',null)
+    .order('fecha_vencimiento_calibracion');
+
+  const hoy = new Date();
+  const vencidos = [], menos7 = [], menos30 = [], ok = [];
+
+  (data||[]).forEach(e => {
+    const dias = Math.ceil((new Date(e.fecha_vencimiento_calibracion) - hoy)/86400000);
+    e._dias = dias;
+    if(dias < 0) vencidos.push(e);
+    else if(dias <= 7) menos7.push(e);
+    else if(dias <= 30) menos30.push(e);
+    else ok.push(e);
+  });
+
+  const filaCalib = (e) => {
+    const badge = e._dias < 0 ? 'bad' : e._dias <= 7 ? 'bad' : e._dias <= 30 ? 'warn' : 'ok';
+    const texto = e._dias < 0 ? `Vencida hace ${Math.abs(e._dias)}d` : `${e._dias} días`;
+    return `<tr>
+      <td><strong>${e.nº_serie}</strong></td>
+      <td>${e.tipos_equipo?.nombre||'—'}</td>
+      <td>${e.marca||'—'}</td>
+      <td>${e.fecha_ultima_calibracion||'—'}</td>
+      <td>${e.fecha_vencimiento_calibracion||'—'}</td>
+      <td><span class="badge ${badge}">${texto}</span></td>
+      <td>${e.usuarios?.nombre_completo||'Almacén'}</td>
+    </tr>`;
+  };
+
+  const seccion = (titulo, color, items) => {
+    if(items.length === 0) return '';
+    return `
+      <div class="card" style="border-left:4px solid var(--${color}); margin-bottom:14px;">
+        <div class="card-title" style="color:var(--${color})">${titulo} (${items.length})</div>
+        <div style="overflow-x:auto;">
+          <table class="inv">
+            <tr><th>Nº Serie</th><th>Tipo</th><th>Marca</th><th>Últ. Calibración</th><th>Vencimiento</th><th>Quedan</th><th>Poseedor</th></tr>
+            ${items.map(filaCalib).join('')}
+          </table>
+        </div>
+      </div>`;
+  };
+
+  document.getElementById('sub-calibraciones').innerHTML =
+    seccion('CALIBRACIÓN VENCIDA — Intervención inmediata', 'bad', vencidos) +
+    seccion('VENCE EN MENOS DE 7 DÍAS — Urgente', 'bad', menos7) +
+    seccion('VENCE EN MENOS DE 30 DÍAS — Planificar', 'warn', menos30) +
+    seccion('Calibración vigente', 'ok', ok) +
+    (!data || data.length === 0 ? '<div class="empty">Sin calibraciones registradas.</div>' : '');
+}
+
+async function cargarFungibles(){
+  const { data } = await db.from('fungibles').select('id, stock_actual, punto_pedido, unidad_medida, proveedor_habitual, tipos_equipo(nombre)').order('id');
+
+  const items = (data||[]).map(f => {
+    const pct = Math.min(100, Math.round((f.stock_actual / Math.max(f.punto_pedido * 2, 1)) * 100));
+    const bajo = f.stock_actual <= f.punto_pedido;
+    return `
+      <div class="card" style="${bajo?'border-left:4px solid var(--bad)':''}">
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+          <div>
+            <div class="card-title">${f.tipos_equipo?.nombre || 'Fungible'}</div>
+            <div class="card-sub">${f.stock_actual} ${f.unidad_medida} ${bajo?'<span class="badge bad">Bajo mínimo</span>':''}</div>
+          </div>
+          <div style="text-align:right;font-size:12px;color:var(--muted);">
+            Pedido: ${f.punto_pedido} ${f.unidad_medida}<br>
+            ${f.proveedor_habitual ? 'Prov: '+f.proveedor_habitual : ''}
+          </div>
+        </div>
+        <div class="gauge-wrap"><div class="gauge-fill ${bajo?'low':''}" style="width:${pct}%"></div></div>
+      </div>`;
+  }).join('');
+
+  document.getElementById('sub-fungibles').innerHTML = items || '<div class="empty">Sin fungibles configurados. Usa la pestaña "+ Fungible" para darlos de alta.</div>';
+}
+
+async function cargarHistoricoFungibles(){
+  const cont = document.getElementById('sub-historico-fungibles');
+  const { data, error } = await db
+    .from('movimientos_fungibles')
+    .select('id, tipo, cantidad, timestamp, fungibles(unidad_medida, tipos_equipo(nombre)), usuarios(nombre_completo)')
+    .order('timestamp', { ascending: false })
+    .limit(200);
+
+  if(error){ cont.innerHTML = `<div class="empty">Error al cargar histórico: ${error.message}</div>`; return; }
+
+  const filas = (data||[]).map(m => `
+    <tr>
+      <td style="font-size:11px;color:var(--muted);">${new Date(m.timestamp).toLocaleString('es-ES')}</td>
+      <td>${m.usuarios?.nombre_completo || '—'}</td>
+      <td>${m.fungibles?.tipos_equipo?.nombre || 'Fungible'}</td>
+      <td>${m.tipo === 'consumo' ? 'Consumo' : 'Reposición'}</td>
+      <td>${m.cantidad} ${m.fungibles?.unidad_medida || ''}</td>
+    </tr>`).join('');
+
+  cont.innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:8px;">
+      <div style="color:var(--muted);font-size:12px;">Mostrando los últimos ${(data||[]).length} movimientos</div>
+      <button class="btn secondary" onclick="borrarHistoricoFungibles()">Borrar histórico antiguo</button>
+    </div>
+    <div style="overflow-x:auto;">
+      <table class="inv">
+        <tr><th>Fecha</th><th>Técnico</th><th>Fungible</th><th>Tipo</th><th>Cantidad</th></tr>
+        ${filas || '<tr><td colspan="5" class="empty">Sin movimientos registrados.</td></tr>'}
+      </table>
+    </div>`;
+}
+
+async function borrarHistoricoFungibles(){
+  const dias = prompt('¿Borrar movimientos de fungibles anteriores a cuántos días? (ej. 90)');
+  const n = parseInt(dias);
+  if(isNaN(n) || n <= 0) return;
+  if(!confirm(`¿Confirmas borrar el histórico de fungibles anterior a ${n} días? Esta acción no se puede deshacer.`)) return;
+
+  const fechaLimite = new Date(Date.now() - n*86400000).toISOString();
+  const { error } = await db.from('movimientos_fungibles').delete().lt('timestamp', fechaLimite);
+  if(error){ mostrarToast('Error al borrar histórico: ' + error.message); return; }
+  mostrarToast('Histórico antiguo eliminado.');
+  cargarHistoricoFungibles();
+}
+
+function mostrarToast(msg){
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 3000);
+}
+
+// ------------------------------------------------------------
+// MI LÍNEA (unificada: equipos propios + solicitudes que me afectan)
+// ------------------------------------------------------------
+async function cargarMiLinea(){
+  const cont = document.getElementById('linea-contenido');
+  cont.innerHTML = '<div class="empty">Cargando...</div>';
+
+  try {
+    // 1. Solicitudes donde soy poseedor y aún no he entregado (acción urgente)
+    const { data: paraEntregar, error: errParaEntregar } = await db
+      .from('solicitudes')
+      .select('id, equipo_id, equipos(nº_serie), estado')
+      .eq('tecnico_poseedor_id', usuarioActual.id)
+      .eq('estado', 'pendiente');
+    if(errParaEntregar) throw errParaEntregar;
+
+    // 1b. Solicitudes donde ya entregué y espero que el receptor confirme
+    const { data: entregadosMios, error: errEntregadosMios } = await db
+      .from('solicitudes')
+      .select('equipo_id')
+      .eq('tecnico_poseedor_id', usuarioActual.id)
+      .eq('estado', 'entregado');
+    if(errEntregadosMios) throw errEntregadosMios;
+    const idsEntregadosEsperando = new Set((entregadosMios||[]).map(s => s.equipo_id));
+
+    // 2. Mis solicitudes en curso (esperando que me entreguen o pendientes de confirmar)
+    const { data: misSolicitudes, error: errMisSolicitudes } = await db
+      .from('solicitudes')
+      .select('id, equipo_id, equipos(nº_serie), estado')
+      .eq('tecnico_solicitante_id', usuarioActual.id)
+      .in('estado', ['pendiente','entregado']);
+    if(errMisSolicitudes) throw errMisSolicitudes;
+
+    // 3. Mis equipos actuales
+    const { data: misEquipos, error: errMisEquipos } = await db
+      .from('equipos')
+      .select('id, nº_serie, estado, fecha_vencimiento_calibracion, tipos_equipo(nombre)')
+      .eq('tecnico_actual_id', usuarioActual.id);
+    if(errMisEquipos) throw errMisEquipos;
+
+    // 3b. Origen de cada equipo (quién me lo entregó) — no bloqueante si falla
+    const misEquiposIds = (misEquipos||[]).map(e => e.id);
+    const origenMiLinea = {};
+    if(misEquiposIds.length){
+      const { data: movs, error: errMovs } = await db
+        .from('movimientos')
+        .select('equipo_id, accion, timestamp, solicitudes(usuarios!tecnico_poseedor_id(nombre_completo))')
+        .in('equipo_id', misEquiposIds)
+        .in('accion', ['recibido','recogida_almacen'])
+        .order('timestamp', { ascending: false });
+      if(errMovs){
+        console.error('Error cargando origen de Mi línea:', errMovs.message);
+      } else {
+        (movs||[]).forEach(m => {
+          if(origenMiLinea[m.equipo_id]) return;
+          origenMiLinea[m.equipo_id] = m.accion === 'recogida_almacen'
+            ? 'Almacén'
+            : (m.solicitudes?.usuarios?.nombre_completo || 'Otro técnico');
+        });
+      }
+    }
+
+  let html = '';
+
+  (paraEntregar||[]).forEach(s => {
+    html += `
+      <div class="card">
+        <div class="card-title">Te piden: ${s.equipos.nº_serie}</div>
+        <div class="card-sub">Un compañero necesita este equipo</div>
+        <button class="btn primary" onclick="marcarEntregado('${s.id}')">Entregar</button>
+        <button class="btn danger" onclick="rechazarSolicitud('${s.id}')">No puedo entregarlo ahora</button>
+      </div>`;
+  });
+
+  (misSolicitudes||[]).forEach(s => {
+    if(s.estado === 'pendiente'){
+      html += `
+        <div class="card">
+          <div class="card-title">${s.equipos.nº_serie} <span class="badge warn">Esperando entrega</span></div>
+          <div class="card-sub">Tu solicitud está pendiente de que te lo entreguen</div>
+        </div>`;
+    } else if(s.estado === 'entregado'){
+      html += `
+        <div class="card">
+          <div class="card-title">${s.equipos.nº_serie} <span class="badge info">Entregado</span></div>
+          <div class="card-sub">Confirma que lo has recibido</div>
+          <button class="btn primary" onclick="confirmarRecibido('${s.id}')">Recibido</button>
+        </div>`;
+    }
+  });
+
+  (misEquipos||[]).forEach(e => {
+    let badge = 'ok', texto = 'Disponible normal';
+    if(e.estado === 'averiado'){ badge='bad'; texto='Averiado'; }
+    else if(e.estado === 'en_calibracion'){ badge='bad'; texto='En calibración'; }
+    else if(e.estado === 'solicitud_pendiente'){
+      if(idsEntregadosEsperando.has(e.id)){ badge='info'; texto='Entregado — esperando que confirme la recepción'; }
+      else { badge='warn'; texto='Solicitud pendiente — pulsa "Entregar" arriba'; }
+    }
+    else if(e.estado === 'solicitud_bloqueada'){ badge='info'; texto='Marcado como no disponible — el Gestor está buscando alternativa'; }
+    else if(e.fecha_vencimiento_calibracion){
+      const dias = Math.ceil((new Date(e.fecha_vencimiento_calibracion) - new Date())/86400000);
+      if(dias <= 7){ badge='bad'; texto=`Calibración vence en ${dias} días`; }
+      else if(dias <= 30){ badge='warn'; texto=`Calibración vence en ${dias} días`; }
+    }
+    html += `
+      <div class="card">
+        <div class="card-title">${e.tipos_equipo?.nombre || 'Equipo'} — ${e.nº_serie}</div>
+        <div class="card-sub"><span class="badge ${badge}">${texto}</span></div>
+        <div style="font-size:11px;color:var(--muted);margin-top:4px;">Recibido de: ${origenMiLinea[e.id] || '—'}</div>
+        <button class="btn secondary" onclick="devolverAlmacen('${e.id}')">Devolver a almacén</button>
+        <button class="btn danger" onclick="reportarAveria('${e.id}')">Reportar avería</button>
+      </div>`;
+  });
+
+  if(!html) html = '<div class="empty">No tienes equipos ni solicitudes activas.</div>';
+  cont.innerHTML = html;
+  } catch(err) {
+    console.error('Error cargando Mi línea:', err);
+    cont.innerHTML = `<div class="empty">No se pudo cargar tu línea. Vuelve a intentarlo o avisa a Fernando.<br><span style="font-size:11px;color:var(--muted);">${err.message || err}</span></div>`;
+  }
+}
+
+async function marcarEntregado(solicitudId){
+  const { error } = await db.rpc('marcar_entregado', { p_solicitud_id: solicitudId });
+  if(error){ mostrarToast('No se pudo completar la entrega.'); return; }
+  mostrarToast('Entrega registrada.');
+  cargarMiLinea();
+}
+
+async function rechazarSolicitud(solicitudId){
+  const motivo = prompt('¿Por qué no puedes entregarlo ahora? (se lo indicaremos al Gestor)');
+  if(!motivo) return;
+  const { error } = await db.rpc('rechazar_solicitud', { p_solicitud_id: solicitudId, p_motivo: motivo });
+  if(error){ mostrarToast('No se pudo registrar el rechazo: ' + error.message); return; }
+  mostrarToast('Aviso enviado al Gestor.');
+  cargarMiLinea();
+}
+
+async function confirmarRecibido(solicitudId){
+  const { error } = await db.rpc('confirmar_recibido', { p_solicitud_id: solicitudId });
+  if(error){ mostrarToast('No se pudo confirmar la recepción.'); return; }
+  mostrarToast('Recepción confirmada.');
+  cargarMiLinea();
+}
+
+async function devolverAlmacen(equipoId){
+  if(!confirm('¿Confirmas la devolución de este equipo a almacén?')) return;
+  const { error } = await db.rpc('devolver_a_almacen', { p_equipo_id: equipoId });
+  if(error){ mostrarToast('No se pudo devolver el equipo.'); return; }
+  mostrarToast('Equipo devuelto a almacén.');
+  cargarMiLinea();
+}
+
+async function reportarAveria(equipoId){
+  const detalle = prompt('Describe brevemente la avería:');
+  if(!detalle) return;
+
+  const { data: equipoActual, error: errLectura } = await db.from('equipos')
+    .select('observaciones').eq('id', equipoId).single();
+  if(errLectura){ mostrarToast('Error al leer el equipo: ' + errLectura.message); return; }
+
+  const fecha = new Date().toLocaleDateString('es-ES');
+  const notaAveria = `[Avería ${fecha}] ${detalle}`;
+  const observacionesNuevas = equipoActual?.observaciones ? `${equipoActual.observaciones}\n${notaAveria}` : notaAveria;
+
+  const { error: errEquipo } = await db.from('equipos')
+    .update({ estado: 'averiado', observaciones: observacionesNuevas })
+    .eq('id', equipoId);
+  if(errEquipo){ mostrarToast('Error al reportar avería: ' + errEquipo.message); return; }
+
+  const { error: errMov } = await db.from('movimientos').insert({
+    equipo_id: equipoId, usuario_id: usuarioActual.id, accion: 'averia', detalle
+  });
+  if(errMov) console.error('Error registrando movimiento de avería:', errMov.message);
+
+  mostrarToast('Avería reportada al Gestor.');
+  cargarMiLinea();
+}
+
+// ------------------------------------------------------------
+// BUSCAR EQUIPO (sin exponer poseedor hasta seleccionar instancia)
+// ------------------------------------------------------------
+let buscarTimeout;
+async function buscarEquipos(){
+  clearTimeout(buscarTimeout);
+  buscarTimeout = setTimeout(async () => {
+    const termino = document.getElementById('buscar-input').value.trim();
+    document.getElementById('detalle-equipo').innerHTML = '';
+    if(termino.length < 3){ document.getElementById('buscar-resultados').innerHTML = ''; return; }
+
+    const { data, error } = await db.rpc('buscar_equipos_por_tipo', { termino });
+    const cont = document.getElementById('buscar-resultados');
+
+    if(error || !data || data.length === 0){
+      cont.innerHTML = '<div class="empty">Sin resultados.</div>';
+      return;
+    }
+
+    const ids = data.map(e => e.id);
+    const { data: poseedores } = await db
+      .from('equipos')
+      .select('id, usuarios(nombre_completo)')
+      .in('id', ids);
+    const mapaPoseedor = {};
+    (poseedores||[]).forEach(p => { mapaPoseedor[p.id] = p.usuarios?.nombre_completo || null; });
+
+    cont.innerHTML = '<div class="card">' + data.map(eq => {
+      let badge = 'info', texto = mapaPoseedor[eq.id] || 'Asignado';
+      if(eq.estado === 'disponible'){ badge='ok'; texto='Almacén'; }
+      else if(eq.estado === 'solicitud_pendiente'){ badge='warn'; texto = (mapaPoseedor[eq.id] || 'Asignado') + ' (solicitud pendiente)'; }
+      else if(eq.estado === 'solicitud_bloqueada'){ badge='bad'; texto = (mapaPoseedor[eq.id] || 'Asignado') + ' (bloqueada)'; }
+      const marcaInfo = eq.marca ? ' · ' + eq.marca : '';
+      return `<div class="result-row" onclick="verDetalle('${eq.id}','${eq.nº_serie}','${eq.estado}','${(eq.nombre_tipo||'').replace(/'/g,'')}')">
+                <div><strong>${eq.nombre_tipo || 'Equipo'}</strong>${marcaInfo}<br><span style="color:var(--muted);font-size:12px">${eq.nº_serie}</span></div>
+                <span class="badge ${badge}">${texto}</span>
+              </div>`;
+    }).join('') + '</div>';
+  }, 300);
+}
+
+async function verDetalle(equipoId, nSerie, estado, nombreTipo){
+  const cont = document.getElementById('detalle-equipo');
+  const titulo = nombreTipo ? nombreTipo + ' — ' + nSerie : nSerie;
+
+  if(estado === 'solicitud_pendiente' || estado === 'solicitud_bloqueada'){
+    const { data } = await db.rpc('consultar_poseedor', { p_equipo_id: equipoId });
+    const info = data && data[0];
+    cont.innerHTML = `
+      <div class="card">
+        <div class="card-title">${titulo}</div>
+        <div class="poseedor-info">
+          Lo tiene: <strong>${info?.nombre_tecnico || 'Desconocido'}</strong>
+        </div>
+        <div class="card-sub" style="margin-top:6px;">Ya hay una solicitud en curso para este equipo. Espera a que se resuelva antes de solicitarlo de nuevo.</div>
+      </div>`;
+  } else if(estado !== 'disponible'){
+    const { data } = await db.rpc('consultar_poseedor', { p_equipo_id: equipoId });
+    const info = data && data[0];
+    cont.innerHTML = `
+      <div class="card">
+        <div class="card-title">${titulo}</div>
+        <div class="poseedor-info">
+          Lo tiene: <strong>${info?.nombre_tecnico || 'Desconocido'}</strong><br>
+          ${info?.ubicacion_texto || ''} ${info?.telefono ? '· Tel: ' + info.telefono : ''}
+        </div>
+        <button class="btn primary" onclick="solicitarEquipo('${equipoId}')">Solicitar equipo</button>
+      </div>`;
+  } else {
+    cont.innerHTML = `
+      <div class="card">
+        <div class="card-title">${titulo} <span class="badge ok">Disponible en almacén</span></div>
+        <button class="btn primary" onclick="recogerAlmacen('${equipoId}')">Recibido de almacén</button>
+      </div>`;
+  }
+}
+
+async function solicitarEquipo(equipoId){
+  const { error } = await db.rpc('crear_solicitud', { p_equipo_id: equipoId });
+  if(error){ mostrarToast('No se pudo crear la solicitud.'); return; }
+  mostrarToast('Solicitud enviada.');
+  document.getElementById('detalle-equipo').innerHTML = '';
+  document.getElementById('buscar-input').value = '';
+  document.getElementById('buscar-resultados').innerHTML = '';
+  cambiarTab('linea');
+}
+
+async function recogerAlmacen(equipoId){
+  const { error } = await db.rpc('recoger_de_almacen', { p_equipo_id: equipoId });
+  if(error){ mostrarToast('No se pudo recoger el equipo.'); return; }
+  mostrarToast('Equipo recogido de almacén.');
+  document.getElementById('detalle-equipo').innerHTML = '';
+  document.getElementById('buscar-input').value = '';
+  document.getElementById('buscar-resultados').innerHTML = '';
+  cambiarTab('linea');
+}
+
+// ------------------------------------------------------------
+// FUNGIBLES — consumo rápido
+// ------------------------------------------------------------
+async function abrirConsumoFungible(){
+  const { data: fungibles, error } = await db.from('fungibles').select('id, unidad_medida, stock_actual, tipos_equipo(nombre)').order('id');
+  if(error){ mostrarToast('Error al cargar fungibles: ' + error.message); return; }
+  if(!fungibles || fungibles.length === 0){ mostrarToast('No hay fungibles configurados.'); return; }
+
+  window._fungiblesDisponibles = fungibles;
+  window._fungibleSeleccionado = null;
+
+  const opciones = fungibles.map(f => `
+    <div class="fungible-opcion" onclick="seleccionarFungibleConsumo('${f.id}')" id="fg-opcion-${f.id}">
+      <strong>${f.tipos_equipo?.nombre || 'Fungible'}</strong>
+      <div style="font-size:12px;color:var(--muted);">Stock actual: ${f.stock_actual} ${f.unidad_medida}</div>
+    </div>`).join('');
+
+  document.getElementById('modal-root').innerHTML = `
+    <div class="modal-overlay" onclick="if(event.target===this) cerrarModalFungible()">
+      <div class="modal-box">
+        <h3>¿Qué fungible has consumido?</h3>
+        <div id="fg-lista-opciones">${opciones}</div>
+        <div id="fg-cantidad-box" style="display:none;margin-top:10px;">
+          <label style="font-size:12px;color:var(--muted);">Cantidad consumida (<span id="fg-unidad"></span>)</label>
+          <input type="number" step="0.01" min="0.01" class="search-box" id="fg-cantidad-input" placeholder="Ej. 2">
+          <button class="btn primary" style="margin-top:10px;width:100%;" onclick="confirmarConsumoFungible()">Registrar consumo</button>
+        </div>
+        <button class="btn" style="margin-top:10px;width:100%;" onclick="cerrarModalFungible()">Cancelar</button>
+      </div>
+    </div>`;
+}
+
+function seleccionarFungibleConsumo(fungibleId){
+  document.querySelectorAll('.fungible-opcion').forEach(el => el.classList.remove('selected'));
+  document.getElementById('fg-opcion-'+fungibleId).classList.add('selected');
+  const f = (window._fungiblesDisponibles||[]).find(x => String(x.id) === String(fungibleId));
+  window._fungibleSeleccionado = f;
+  document.getElementById('fg-unidad').textContent = f?.unidad_medida || '';
+  document.getElementById('fg-cantidad-box').style.display = 'block';
+  document.getElementById('fg-cantidad-input').focus();
+}
+
+async function confirmarConsumoFungible(){
+  const f = window._fungibleSeleccionado;
+  const cantidad = parseFloat(document.getElementById('fg-cantidad-input').value);
+  if(!f || isNaN(cantidad) || cantidad <= 0){ mostrarToast('Indica una cantidad válida.'); return; }
+
+  const { data: cruzaUmbral, error } = await db.rpc('registrar_consumo_fungible', {
+    p_fungible_id: f.id, p_cantidad: cantidad
+  });
+  if(error){ mostrarToast('Error al registrar consumo: ' + error.message); return; }
+  mostrarToast(cruzaUmbral ? 'Consumo registrado. Aviso de stock bajo enviado al Gestor.' : 'Consumo registrado.');
+  cerrarModalFungible();
+}
+
+function cerrarModalFungible(){
+  document.getElementById('modal-root').innerHTML = '';
+  window._fungiblesDisponibles = null;
+  window._fungibleSeleccionado = null;
+}
+</script>
+<div id="modal-root"></div>
+</body>
+</html>
