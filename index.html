@@ -92,6 +92,15 @@
 
   .poseedor-info{background:#F0F7F7; border-radius:10px; padding:14px; margin:10px 0;}
 
+  .field{margin-bottom:12px;}
+  .field label{display:block; font-size:12px; font-weight:700; color:var(--navy); text-transform:uppercase; letter-spacing:.3px; margin-bottom:5px;}
+  .field .search-box{margin-bottom:0;}
+  .form-section{border-top:1px solid #EEF0F2; margin-top:14px; padding-top:14px;}
+  .form-section-title{font-size:11px; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:.5px; margin-bottom:10px;}
+  @media (min-width:600px){
+    .field-grid{display:grid; grid-template-columns:1fr 1fr; gap:0 14px;}
+  }
+
   .fungible-btn{
     display:flex; align-items:center; justify-content:center; gap:8px;
     background:#EEF2F6; color:var(--blue); font-weight:600;
@@ -206,6 +215,9 @@
 
     <!-- VISTA: BUSCAR EQUIPO -->
     <div class="view" id="view-buscar">
+      <select class="search-box" id="buscar-categoria" onchange="buscarPorCategoria()">
+        <option value="">— O elige una categoría para ver todo lo que tenemos —</option>
+      </select>
       <input type="text" class="search-box" id="buscar-input" placeholder="Ej. yugo magnético, medidor..." oninput="buscarEquipos()">
       <div id="buscar-resultados"></div>
       <div id="detalle-equipo"></div>
@@ -220,7 +232,10 @@
         <div class="subtab" data-sub="calibraciones" onclick="cambiarSubtab('calibraciones')">Calibraciones</div>
         <div class="subtab" data-sub="fungibles" onclick="cambiarSubtab('fungibles')">Fungibles</div>
         <div class="subtab" data-sub="altaequipo" onclick="cambiarSubtab('altaequipo')">+ Equipo</div>
+        <div class="subtab" data-sub="editarequipo" onclick="cambiarSubtab('editarequipo')">Editar Equipo</div>
         <div class="subtab" data-sub="altafungible" onclick="cambiarSubtab('altafungible')">+ Fungible</div>
+        <div class="subtab" data-sub="reponerfungible" onclick="cambiarSubtab('reponerfungible')">Reponer Fungible</div>
+        <div class="subtab" data-sub="editarfungible" onclick="cambiarSubtab('editarfungible')">Editar Fungible</div>
         <div class="subtab" data-sub="historico-fungibles" onclick="cambiarSubtab('historico-fungibles')">Histórico Fung.</div>
       </div>
 
@@ -230,25 +245,44 @@
       <div class="subview" id="sub-fungibles"><div class="empty">Cargando...</div></div>
       <div class="subview" id="sub-historico-fungibles"><div class="empty">Cargando...</div></div>
 
-      <!-- ALTA / EDICIÓN DE EQUIPO -->
+      <!-- ALTA DE EQUIPO -->
       <div class="subview" id="sub-altaequipo">
         <div class="card">
           <div class="card-title">Alta de equipo nuevo</div>
           <div class="card-sub">También para equipos reparados que vuelven al inventario</div>
-          <select id="eq-tipo" class="search-box"><option value="">— Tipo de equipo —</option></select>
-          <input type="text" id="eq-tipo-nuevo" class="search-box" placeholder="O escribe un tipo nuevo aquí..." style="display:none;">
-          <button class="btn secondary" onclick="toggleTipoNuevo()" style="margin-bottom:8px;font-size:13px;" id="btn-tipo-toggle">¿Tipo nuevo? Crear</button>
-          <input type="text" id="eq-serie" class="search-box" placeholder="Nº serie / ID OCA *">
-          <input type="text" id="eq-marca" class="search-box" placeholder="Marca (opcional)">
-          <input type="date" id="eq-fcalib" class="search-box" placeholder="Fecha última calibración">
-          <label style="font-size:13px;color:var(--muted);margin:-6px 0 4px 4px;display:block;">Fecha última calibración</label>
-          <input type="date" id="eq-fvenc" class="search-box" placeholder="Fecha vencimiento calibración">
-          <label style="font-size:13px;color:var(--muted);margin:-6px 0 4px 4px;display:block;">Fecha vencimiento calibración</label>
-          <input type="text" id="eq-ubicacion" class="search-box" placeholder="Ubicación (ej. Almacén, Furgoneta...)">
+
+          <div class="form-section-title">Identificación</div>
+          <div class="field">
+            <label>Tipo de equipo</label>
+            <select id="eq-tipo" class="search-box"><option value="">— Tipo de equipo —</option></select>
+            <input type="text" id="eq-tipo-nuevo" class="search-box" placeholder="Escribe el tipo nuevo aquí..." style="display:none;margin-top:8px;">
+            <button class="btn secondary" onclick="toggleTipoNuevo()" style="margin-top:6px;font-size:12px;padding:8px;" id="btn-tipo-toggle">¿Tipo nuevo? Crear</button>
+          </div>
+          <div class="field-grid">
+            <div class="field"><label>Nº serie / ID OCA *</label><input type="text" id="eq-serie" class="search-box"></div>
+            <div class="field"><label>Marca</label><input type="text" id="eq-marca" class="search-box"></div>
+          </div>
+
+          <div class="form-section">
+            <div class="form-section-title">Calibración</div>
+            <div class="field-grid">
+              <div class="field"><label>Última calibración</label><input type="date" id="eq-fcalib" class="search-box"></div>
+              <div class="field"><label>Vencimiento calibración</label><input type="date" id="eq-fvenc" class="search-box"></div>
+            </div>
+          </div>
+
+          <div class="form-section">
+            <div class="form-section-title">Ubicación</div>
+            <div class="field"><label>Ubicación inicial</label><input type="text" id="eq-ubicacion" class="search-box" placeholder="Almacén, Furgoneta..."></div>
+          </div>
+
           <button class="btn primary" onclick="altaEquipo()">Dar de alta</button>
         </div>
+      </div>
 
-        <div class="card" style="margin-top:14px;">
+      <!-- EDITAR EQUIPO -->
+      <div class="subview" id="sub-editarequipo">
+        <div class="card">
           <div class="card-title">Editar equipo existente</div>
           <div class="card-sub">Actualizar calibración, marca, estado o ubicación</div>
           <input type="text" id="edit-buscar" class="search-box" placeholder="Buscar por nº serie o nombre..." oninput="buscarParaEditar()">
@@ -257,26 +291,58 @@
         </div>
       </div>
 
-      <!-- ALTA / GESTIÓN DE FUNGIBLES -->
+      <!-- ALTA DE FUNGIBLE -->
       <div class="subview" id="sub-altafungible">
         <div class="card">
           <div class="card-title">Dar de alta fungible nuevo</div>
           <div class="card-sub">Placas, líquidos, partículas, penetrantes...</div>
-          <input type="text" id="fg-nombre" class="search-box" placeholder="Nombre (ej. Placas D5 30x40) *">
-          <input type="text" id="fg-unidad" class="search-box" placeholder="Unidad de medida (ej. unidades, litros, botes) *">
-          <input type="number" id="fg-stock" class="search-box" placeholder="Stock actual *" min="0" step="0.1">
-          <input type="number" id="fg-pedido" class="search-box" placeholder="Punto de pedido (alarma) *" min="0" step="0.1">
-          <input type="text" id="fg-proveedor" class="search-box" placeholder="Proveedor habitual (opcional)">
+
+          <div class="form-section-title">Identificación</div>
+          <div class="field">
+            <label>Tipo de fungible</label>
+            <select id="fg-tipo" class="search-box"><option value="">— Tipo de fungible —</option></select>
+            <input type="text" id="fg-tipo-nuevo" class="search-box" placeholder="Escribe el tipo nuevo aquí..." style="display:none;margin-top:8px;">
+            <button class="btn secondary" onclick="toggleTipoFungibleNuevo()" style="margin-top:6px;font-size:12px;padding:8px;" id="btn-tipo-fungible-toggle">¿Tipo nuevo? Crear</button>
+          </div>
+          <div class="field"><label>Tamaño / especificación</label><input type="text" id="fg-especificacion" class="search-box" placeholder="Ej. 10x40, 0-10 bares (opcional)"></div>
+          <div class="field"><label>Unidad de medida *</label><input type="text" id="fg-unidad" class="search-box" placeholder="Ej. unidades, litros, botes"></div>
+
+          <div class="form-section">
+            <div class="form-section-title">Stock</div>
+            <div class="field-grid">
+              <div class="field"><label>Stock actual *</label><input type="number" id="fg-stock" class="search-box" min="0" step="0.1"></div>
+              <div class="field"><label>Punto de pedido *</label><input type="number" id="fg-pedido" class="search-box" min="0" step="0.1"></div>
+            </div>
+          </div>
+
+          <div class="form-section">
+            <div class="form-section-title">Proveedor</div>
+            <div class="field"><label>Proveedor habitual</label><input type="text" id="fg-proveedor" class="search-box" placeholder="Opcional"></div>
+          </div>
+
           <button class="btn primary" onclick="altaFungible()">Dar de alta</button>
         </div>
+      </div>
 
-        <div class="card" style="margin-top:14px;">
+      <!-- REPONER STOCK DE FUNGIBLE -->
+      <div class="subview" id="sub-reponerfungible">
+        <div class="card">
           <div class="card-title">Reponer stock de fungible existente</div>
           <div class="card-sub">Entrada de material nuevo al almacén</div>
-          <select id="fg-reponer-sel" class="search-box"><option value="">— Seleccionar fungible —</option></select>
-          <input type="number" id="fg-reponer-cant" class="search-box" placeholder="Cantidad recibida" min="0" step="0.1">
+          <div class="field"><label>Fungible</label><select id="fg-reponer-sel" class="search-box"><option value="">— Seleccionar fungible —</option></select></div>
+          <div class="field"><label>Cantidad recibida</label><input type="number" id="fg-reponer-cant" class="search-box" min="0" step="0.1"></div>
           <button class="btn primary" onclick="reponerFungible()">Registrar reposición</button>
         </div>
+      </div>
+
+      <!-- EDITAR DATOS DE FUNGIBLE -->
+      <div class="subview" id="sub-editarfungible">
+        <div class="card">
+          <div class="card-title">Editar fungible existente</div>
+          <div class="card-sub">Corregir unidad, especificación, punto de pedido o proveedor</div>
+          <div class="field"><label>Fungible</label><select id="fg-editar-sel" class="search-box" onchange="cargarEdicionFungible()"><option value="">— Seleccionar fungible —</option></select></div>
+        </div>
+        <div id="fg-edicion"></div>
       </div>
     </div>
   </main>
@@ -351,6 +417,7 @@ function cambiarTab(vista){
   document.getElementById('view-' + vista).classList.add('active');
   if(vista === 'linea') cargarMiLinea();
   if(vista === 'gestor') cargarPanelGestor();
+  if(vista === 'buscar') cargarCategoriasBusqueda();
 }
 
 function cambiarSubtab(sub){
@@ -363,7 +430,9 @@ function cambiarSubtab(sub){
   if(sub === 'historico-fungibles') cargarHistoricoFungibles();
   if(sub === 'solicitudes') cargarSolicitudesVivo();
   if(sub === 'altaequipo') cargarSelectorTipos();
-  if(sub === 'altafungible') cargarSelectorFungibles();
+  if(sub === 'altafungible') cargarSelectorTiposFungible();
+  if(sub === 'reponerfungible') cargarSelectorFungibles('fg-reponer-sel');
+  if(sub === 'editarfungible') cargarSelectorFungibles('fg-editar-sel');
 }
 
 // ------------------------------------------------------------
@@ -458,26 +527,47 @@ async function buscarParaEditar(){
 async function abrirEdicion(equipoId){
   document.getElementById('edit-resultados').innerHTML = '';
   const { data: e } = await db.from('equipos')
-    .select('id, nº_serie, estado, marca, fecha_ultima_calibracion, fecha_vencimiento_calibracion, ubicacion_texto, tipos_equipo(nombre)')
+    .select('id, nº_serie, estado, marca, observaciones, fecha_ultima_calibracion, fecha_vencimiento_calibracion, ubicacion_texto, tipos_equipo(nombre)')
     .eq('id', equipoId).single();
   if(!e) return;
 
   document.getElementById('edit-formulario').innerHTML = `
     <div class="card" style="margin-top:10px; border-left:4px solid var(--accent);">
       <div class="card-title">${e.tipos_equipo?.nombre||'Equipo'} — ${e.nº_serie}</div>
-      <input type="text" class="search-box" id="ed-marca" value="${e.marca||''}" placeholder="Marca">
-      <label style="font-size:13px;color:var(--muted);margin:-6px 0 4px 4px;display:block;">Última calibración</label>
-      <input type="date" class="search-box" id="ed-fcalib" value="${e.fecha_ultima_calibracion||''}">
-      <label style="font-size:13px;color:var(--muted);margin:-6px 0 4px 4px;display:block;">Vencimiento calibración</label>
-      <input type="date" class="search-box" id="ed-fvenc" value="${e.fecha_vencimiento_calibracion||''}">
-      <input type="text" class="search-box" id="ed-ubicacion" value="${e.ubicacion_texto||''}" placeholder="Ubicación">
-      <select class="search-box" id="ed-estado">
-        <option value="disponible" ${e.estado==='disponible'?'selected':''}>Disponible</option>
-        <option value="en_uso" ${e.estado==='en_uso'?'selected':''}>En uso</option>
-        <option value="en_calibracion" ${e.estado==='en_calibracion'?'selected':''}>En calibración</option>
-        <option value="averiado" ${e.estado==='averiado'?'selected':''}>Averiado</option>
-        <option value="baja" ${e.estado==='baja'?'selected':''}>Baja</option>
-      </select>
+
+      <div class="form-section-title">Estado y ubicación</div>
+      <div class="field-grid">
+        <div class="field">
+          <label>Estado</label>
+          <select class="search-box" id="ed-estado">
+            <option value="disponible" ${e.estado==='disponible'?'selected':''}>Disponible</option>
+            <option value="en_uso" ${e.estado==='en_uso'?'selected':''}>En uso</option>
+            <option value="en_calibracion" ${e.estado==='en_calibracion'?'selected':''}>En calibración</option>
+            <option value="averiado" ${e.estado==='averiado'?'selected':''}>Averiado</option>
+            <option value="baja" ${e.estado==='baja'?'selected':''}>Baja</option>
+          </select>
+        </div>
+        <div class="field"><label>Ubicación</label><input type="text" class="search-box" id="ed-ubicacion" value="${e.ubicacion_texto||''}"></div>
+      </div>
+
+      <div class="form-section">
+        <div class="form-section-title">Identificación</div>
+        <div class="field"><label>Marca</label><input type="text" class="search-box" id="ed-marca" value="${e.marca||''}"></div>
+      </div>
+
+      <div class="form-section">
+        <div class="form-section-title">Calibración</div>
+        <div class="field-grid">
+          <div class="field"><label>Última calibración</label><input type="date" class="search-box" id="ed-fcalib" value="${e.fecha_ultima_calibracion||''}"></div>
+          <div class="field"><label>Vencimiento calibración</label><input type="date" class="search-box" id="ed-fvenc" value="${e.fecha_vencimiento_calibracion||''}"></div>
+        </div>
+      </div>
+
+      <div class="form-section">
+        <div class="form-section-title">Observaciones</div>
+        <div class="field"><textarea class="search-box" id="ed-observaciones" rows="3" style="resize:vertical;">${e.observaciones||''}</textarea></div>
+      </div>
+
       <button class="btn primary" onclick="guardarEdicion('${e.id}')">Guardar cambios</button>
     </div>`;
 }
@@ -488,6 +578,7 @@ async function guardarEdicion(equipoId){
     fecha_ultima_calibracion: document.getElementById('ed-fcalib').value || null,
     fecha_vencimiento_calibracion: document.getElementById('ed-fvenc').value || null,
     ubicacion_texto: document.getElementById('ed-ubicacion').value.trim() || null,
+    observaciones: document.getElementById('ed-observaciones').value.trim() || null,
     estado: document.getElementById('ed-estado').value,
   };
   const { error } = await db.from('equipos').update(updates).eq('id', equipoId);
@@ -505,44 +596,69 @@ async function guardarEdicion(equipoId){
 // ------------------------------------------------------------
 // ALTA Y REPOSICIÓN DE FUNGIBLES (Gestor)
 // ------------------------------------------------------------
-async function cargarSelectorFungibles(){
-  const { data } = await db.from('fungibles').select('id, unidad_medida, tipos_equipo(nombre)').order('id');
-  const sel = document.getElementById('fg-reponer-sel');
+async function cargarSelectorTiposFungible(){
+  const { data } = await db.from('tipos_equipo').select('id, nombre').eq('categoria', 'fungible').order('nombre');
+  const sel = document.getElementById('fg-tipo');
+  sel.innerHTML = '<option value="">— Tipo de fungible —</option>' +
+    (data||[]).map(t => `<option value="${t.id}">${t.nombre}</option>`).join('');
+}
+
+function toggleTipoFungibleNuevo(){
+  const inp = document.getElementById('fg-tipo-nuevo');
+  const sel = document.getElementById('fg-tipo');
+  const btn = document.getElementById('btn-tipo-fungible-toggle');
+  if(inp.style.display === 'none'){
+    inp.style.display = 'block'; sel.style.display = 'none';
+    btn.textContent = 'Usar tipo existente';
+  } else {
+    inp.style.display = 'none'; sel.style.display = 'block';
+    btn.textContent = '¿Tipo nuevo? Crear';
+  }
+}
+
+async function cargarSelectorFungibles(selectId){
+  const { data } = await db.from('fungibles').select('id, unidad_medida, especificacion, tipos_equipo(nombre)').order('id');
+  const sel = document.getElementById(selectId);
+  if(!sel) return;
   sel.innerHTML = '<option value="">— Seleccionar fungible —</option>' +
-    (data||[]).map(f => `<option value="${f.id}">${f.tipos_equipo?.nombre||'Fungible'} (${f.unidad_medida})</option>`).join('');
+    (data||[]).map(f => {
+      const etiqueta = [f.tipos_equipo?.nombre||'Fungible', f.especificacion, `(${f.unidad_medida})`].filter(Boolean).join(' — ');
+      return `<option value="${f.id}">${etiqueta}</option>`;
+    }).join('');
 }
 
 async function altaFungible(){
-  const nombre = document.getElementById('fg-nombre').value.trim();
+  let tipoId = document.getElementById('fg-tipo').value;
+  const tipoNuevo = document.getElementById('fg-tipo-nuevo').value.trim();
+  const especificacion = document.getElementById('fg-especificacion').value.trim() || null;
   const unidad = document.getElementById('fg-unidad').value.trim();
   const stock = parseFloat(document.getElementById('fg-stock').value);
   const pedido = parseFloat(document.getElementById('fg-pedido').value);
   const proveedor = document.getElementById('fg-proveedor').value.trim() || null;
 
-  if(!nombre || !unidad || isNaN(stock) || isNaN(pedido)){
+  if((!tipoId && !tipoNuevo) || !unidad || isNaN(stock) || isNaN(pedido)){
     mostrarToast('Rellena todos los campos obligatorios (*).'); return;
   }
 
-  const { data: tipoExist } = await db.from('tipos_equipo').select('id').eq('nombre', nombre).single();
-  let tipoId;
-  if(tipoExist){ tipoId = tipoExist.id; }
-  else {
-    const { data: nuevoTipo } = await db.from('tipos_equipo')
-      .insert({ nombre, categoria: 'fungible', requiere_calibracion: false })
+  if(tipoNuevo && !tipoId){
+    const { data: nuevoTipo, error: errTipo } = await db.from('tipos_equipo')
+      .insert({ nombre: tipoNuevo, categoria: 'fungible', requiere_calibracion: false })
       .select().single();
+    if(errTipo){ mostrarToast('Error al crear tipo: ' + errTipo.message); return; }
     tipoId = nuevoTipo.id;
   }
 
   const { data: deleg } = await db.from('delegaciones').select('id').limit(1).single();
   const { error } = await db.from('fungibles').insert({
-    tipo_equipo_id: tipoId, unidad_medida: unidad, stock_actual: stock,
+    tipo_equipo_id: tipoId, especificacion, unidad_medida: unidad, stock_actual: stock,
     punto_pedido: pedido, delegacion_id: deleg.id, proveedor_habitual: proveedor
   });
   if(error){ mostrarToast('Error: ' + error.message); return; }
 
   mostrarToast('Fungible dado de alta.');
-  ['fg-nombre','fg-unidad','fg-stock','fg-pedido','fg-proveedor'].forEach(id => document.getElementById(id).value = '');
-  cargarSelectorFungibles();
+  ['fg-especificacion','fg-unidad','fg-stock','fg-pedido','fg-proveedor','fg-tipo-nuevo'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('fg-tipo').value = '';
+  cargarSelectorTiposFungible();
 }
 
 async function reponerFungible(){
@@ -552,7 +668,6 @@ async function reponerFungible(){
     mostrarToast('Selecciona un fungible e indica la cantidad.'); return;
   }
 
-  await db.from('fungibles').update({ stock_actual: db.rpc ? undefined : 0 }).eq('id', fungibleId);
   const { data: current } = await db.from('fungibles').select('stock_actual').eq('id', fungibleId).single();
   await db.from('fungibles').update({ stock_actual: current.stock_actual + cantidad }).eq('id', fungibleId);
 
@@ -562,7 +677,48 @@ async function reponerFungible(){
 
   mostrarToast('Stock repuesto correctamente.');
   document.getElementById('fg-reponer-cant').value = '';
-  cargarSelectorFungibles();
+  cargarSelectorFungibles('fg-reponer-sel');
+}
+
+async function cargarEdicionFungible(){
+  const fungibleId = document.getElementById('fg-editar-sel').value;
+  const cont = document.getElementById('fg-edicion');
+  if(!fungibleId){ cont.innerHTML = ''; return; }
+
+  const { data: f, error } = await db.from('fungibles')
+    .select('id, unidad_medida, especificacion, punto_pedido, proveedor_habitual, tipos_equipo(nombre)')
+    .eq('id', fungibleId).single();
+  if(error){ cont.innerHTML = `<div class="empty">Error al cargar: ${error.message}</div>`; return; }
+
+  cont.innerHTML = `
+    <div class="card" style="margin-top:14px;border-left:4px solid var(--accent);">
+      <div class="card-title">Editar datos: ${f.tipos_equipo?.nombre||'Fungible'}</div>
+      <div class="form-section-title">Identificación</div>
+      <div class="field"><label>Tamaño / especificación</label><input type="text" class="search-box" id="fged-especificacion" value="${f.especificacion||''}"></div>
+      <div class="field"><label>Unidad de medida</label><input type="text" class="search-box" id="fged-unidad" value="${f.unidad_medida||''}"></div>
+      <div class="form-section">
+        <div class="form-section-title">Stock y proveedor</div>
+        <div class="field-grid">
+          <div class="field"><label>Punto de pedido</label><input type="number" class="search-box" id="fged-pedido" value="${f.punto_pedido||0}" min="0" step="0.1"></div>
+          <div class="field"><label>Proveedor habitual</label><input type="text" class="search-box" id="fged-proveedor" value="${f.proveedor_habitual||''}"></div>
+        </div>
+      </div>
+      <button class="btn primary" onclick="guardarEdicionFungible('${f.id}')">Guardar cambios</button>
+    </div>`;
+}
+
+async function guardarEdicionFungible(fungibleId){
+  const updates = {
+    especificacion: document.getElementById('fged-especificacion').value.trim() || null,
+    unidad_medida: document.getElementById('fged-unidad').value.trim(),
+    punto_pedido: parseFloat(document.getElementById('fged-pedido').value) || 0,
+    proveedor_habitual: document.getElementById('fged-proveedor').value.trim() || null,
+  };
+  const { error } = await db.from('fungibles').update(updates).eq('id', fungibleId);
+  if(error){ mostrarToast('Error al guardar: ' + error.message); return; }
+  mostrarToast('Fungible actualizado.');
+  cargarSelectorFungibles('fg-editar-sel');
+  cargarEdicionFungible();
 }
 
 // ------------------------------------------------------------
@@ -625,6 +781,14 @@ async function cargarSolicitudesVivo(){
       ? `<button class="btn secondary" style="margin-top:6px;width:100%;font-size:12px;padding:6px;"
            onclick="buscarAlternativa('${s.id}','${s.equipo_id}','${s.equipos?.tipos_equipo?.id||''}','${(s.equipos?.tipos_equipo?.nombre||'').replace(/'/g,'')}')">Buscar alternativa</button>`
       : '';
+    const fechaSolicitud = (s.estado === 'pendiente' && s.fecha_solicitud)
+      ? `<div>🕒 Solicitado desde: <strong>${new Date(s.fecha_solicitud).toLocaleString('es-ES', {day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'})}</strong></div>`
+      : '';
+    const avisoPendiente = (s.estado === 'pendiente' && destino !== 'Almacén')
+      ? `<span class="badge warn" style="margin-top:4px;display:inline-block;">⚠ Sin respuesta de ${destino}</span>
+         <button class="btn secondary" style="margin-top:6px;width:100%;font-size:12px;padding:6px;"
+           onclick="enviarRecordatorioEntrega('${s.id}','${s.equipo_id}','${destino.replace(/'/g,'')}')">Enviar recordatorio</button>`
+      : '';
     const fechaEntrega = (s.estado === 'entregado' && s.fecha_entrega)
       ? `<div>🕒 Entrega sin confirmar desde: <strong>${new Date(s.fecha_entrega).toLocaleString('es-ES', {day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'})}</strong></div>`
       : '';
@@ -640,6 +804,8 @@ async function cargarSolicitudesVivo(){
       <div style="margin-top:6px;font-size:11px;line-height:1.5;">
         <div>👤 Solicita: <strong>${s.solicitante?.nombre_completo || '—'}</strong></div>
         <div>➡️ A: <strong>${destino}</strong></div>
+        ${fechaSolicitud}
+        ${avisoPendiente}
         ${fechaEntrega}
         ${avisoSinConfirmar}
       </div>
@@ -742,6 +908,18 @@ async function enviarRecordatorio(solicitudId, equipoId, nombreReceptor){
   mostrarToast(`Recordatorio enviado a ${nombreReceptor} por Telegram.`);
 }
 
+async function enviarRecordatorioEntrega(solicitudId, equipoId, nombrePoseedor){
+  if(!confirm(`¿Enviar un recordatorio por Telegram a ${nombrePoseedor} para que entregue el equipo o indique que no puede?`)) return;
+  const { error } = await db.rpc('enviar_recordatorio_entrega', { p_solicitud_id: solicitudId });
+  if(error){ mostrarToast('Error al enviar recordatorio: ' + error.message); return; }
+  const { error: errMov } = await db.from('movimientos').insert({
+    equipo_id: equipoId, solicitud_id: solicitudId, usuario_id: usuarioActual.id,
+    accion: 'recordatorio_confirmacion', detalle: `Recordatorio de entrega enviado a ${nombrePoseedor}`
+  });
+  if(errMov) console.error('Error registrando recordatorio en movimientos:', errMov.message);
+  mostrarToast(`Recordatorio enviado a ${nombrePoseedor} por Telegram.`);
+}
+
 let inventarioDataCompleta = [];
 let inventarioOrigenMap = {};
 let inventarioEntregadosEsperando = new Set();
@@ -809,7 +987,7 @@ async function cargarInventario(){
     <div id="inventario-edicion"></div>
     <div style="overflow-x:auto;">
       <table class="inv" id="tabla-inventario">
-        <tr><th>Nº Serie</th><th>Tipo</th><th>Marca</th><th>Estado</th><th>Poseedor</th><th>Recibido de</th><th>Observaciones</th><th>Venc. Calib.</th></tr>
+        <tr><th>Nº Serie</th><th>Tipo</th><th>Marca</th><th>Estado</th><th>Ubicación</th><th>Recibido de</th><th>Observaciones</th><th>Venc. Calib.</th></tr>
       </table>
     </div>
     <div style="color:var(--muted);font-size:12px;margin-top:8px;" id="inventario-total"></div>`;
@@ -848,7 +1026,7 @@ function renderTablaInventario(lista){
       <td>${e.tipos_equipo?.nombre||'—'}</td>
       <td>${e.marca||'—'}</td>
       <td><span class="badge ${badgeCls}">${badgeTxt}</span></td>
-      <td>${e.usuarios?.nombre_completo || 'Almacén'}</td>
+      <td>${e.ubicacion_texto || '—'}</td>
       <td style="font-size:13px;">${(() => {
         if(!(e.estado==='en_uso'||e.estado==='solicitud_pendiente'||e.estado==='solicitud_bloqueada')) return '—';
         const o = inventarioOrigenMap[e.id];
@@ -861,7 +1039,7 @@ function renderTablaInventario(lista){
   }).join('');
 
   document.getElementById('tabla-inventario').innerHTML = `
-    <tr><th>Nº Serie</th><th>Tipo</th><th>Marca</th><th>Estado</th><th>Poseedor</th><th>Recibido de</th><th>Observaciones</th><th>Venc. Calib.</th></tr>
+    <tr><th>Nº Serie</th><th>Tipo</th><th>Marca</th><th>Estado</th><th>Ubicación</th><th>Recibido de</th><th>Observaciones</th><th>Venc. Calib.</th></tr>
     ${filas || '<tr><td colspan="8" class="empty">Sin equipos que coincidan con el filtro.</td></tr>'}`;
   document.getElementById('inventario-total').textContent = `Total: ${(lista||[]).length} equipos`;
 }
@@ -993,20 +1171,21 @@ async function cargarCalibraciones(){
 }
 
 async function cargarFungibles(){
-  const { data } = await db.from('fungibles').select('id, stock_actual, punto_pedido, unidad_medida, proveedor_habitual, tipos_equipo(nombre)').order('id');
+  const { data } = await db.from('fungibles').select('id, stock_actual, punto_pedido, unidad_medida, especificacion, proveedor_habitual, tipos_equipo(nombre)').order('id');
 
   const items = (data||[]).map(f => {
     const pct = Math.min(100, Math.round((f.stock_actual / Math.max(f.punto_pedido * 2, 1)) * 100));
     const bajo = f.stock_actual <= f.punto_pedido;
+    const titulo = [f.tipos_equipo?.nombre || 'Fungible', f.especificacion].filter(Boolean).join(' — ');
     return `
       <div class="card" style="${bajo?'border-left:4px solid var(--bad)':''}">
         <div style="display:flex;justify-content:space-between;align-items:center;">
           <div>
-            <div class="card-title">${f.tipos_equipo?.nombre || 'Fungible'}</div>
-            <div class="card-sub">${f.stock_actual} ${f.unidad_medida} ${bajo?'<span class="badge bad">Bajo mínimo</span>':''}</div>
+            <div class="card-title">${titulo}</div>
+            <div class="card-sub">Stock: <strong>${f.stock_actual} ${f.unidad_medida}</strong> ${bajo?'<span class="badge bad">Bajo mínimo</span>':''}</div>
           </div>
           <div style="text-align:right;font-size:12px;color:var(--muted);">
-            Pedido: ${f.punto_pedido} ${f.unidad_medida}<br>
+            Mínimo: ${f.punto_pedido} ${f.unidad_medida}<br>
             ${f.proveedor_habitual ? 'Prov: '+f.proveedor_habitual : ''}
           </div>
         </div>
@@ -1021,20 +1200,23 @@ async function cargarHistoricoFungibles(){
   const cont = document.getElementById('sub-historico-fungibles');
   const { data, error } = await db
     .from('movimientos_fungibles')
-    .select('id, tipo, cantidad, timestamp, fungibles(unidad_medida, tipos_equipo(nombre)), usuarios(nombre_completo)')
+    .select('id, tipo, cantidad, timestamp, fungibles(unidad_medida, especificacion, tipos_equipo(nombre)), usuarios(nombre_completo)')
     .order('timestamp', { ascending: false })
     .limit(200);
 
   if(error){ cont.innerHTML = `<div class="empty">Error al cargar histórico: ${error.message}</div>`; return; }
 
-  const filas = (data||[]).map(m => `
+  const filas = (data||[]).map(m => {
+    const nombreFungible = [m.fungibles?.tipos_equipo?.nombre || 'Fungible', m.fungibles?.especificacion].filter(Boolean).join(' — ');
+    return `
     <tr>
       <td style="font-size:11px;color:var(--muted);">${new Date(m.timestamp).toLocaleString('es-ES')}</td>
       <td>${m.usuarios?.nombre_completo || '—'}</td>
-      <td>${m.fungibles?.tipos_equipo?.nombre || 'Fungible'}</td>
+      <td>${nombreFungible}</td>
       <td>${m.tipo === 'consumo' ? 'Consumo' : 'Reposición'}</td>
       <td>${m.cantidad} ${m.fungibles?.unidad_medida || ''}</td>
-    </tr>`).join('');
+    </tr>`;
+  }).join('');
 
   cont.innerHTML = `
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:8px;">
@@ -1097,7 +1279,7 @@ async function cargarMiLinea(){
     // 2. Mis solicitudes en curso (esperando que me entreguen o pendientes de confirmar)
     const { data: misSolicitudes, error: errMisSolicitudes } = await db
       .from('solicitudes')
-      .select('id, equipo_id, equipos(nº_serie), estado')
+      .select('id, equipo_id, equipos(nº_serie), estado, fecha_solicitud, poseedor:usuarios!tecnico_poseedor_id(nombre_completo)')
       .eq('tecnico_solicitante_id', usuarioActual.id)
       .in('estado', ['pendiente','entregado']);
     if(errMisSolicitudes) throw errMisSolicitudes;
@@ -1147,11 +1329,12 @@ async function cargarMiLinea(){
   });
 
   (misSolicitudes||[]).forEach(s => {
+    const fecha = s.fecha_solicitud ? new Date(s.fecha_solicitud).toLocaleString('es-ES', {day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}) : '';
     if(s.estado === 'pendiente'){
       html += `
         <div class="card">
           <div class="card-title">${s.equipos.nº_serie} <span class="badge warn">Esperando entrega</span></div>
-          <div class="card-sub">Tu solicitud está pendiente de que te lo entreguen</div>
+          <div class="card-sub">Pendiente de: <strong>${s.poseedor?.nombre_completo || '—'}</strong>${fecha ? ` · solicitado ${fecha}` : ''}</div>
         </div>`;
     } else if(s.estado === 'entregado'){
       html += `
@@ -1265,35 +1448,71 @@ async function buscarEquipos(){
     const termino = document.getElementById('buscar-input').value.trim();
     document.getElementById('detalle-equipo').innerHTML = '';
     if(termino.length < 3){ document.getElementById('buscar-resultados').innerHTML = ''; return; }
+    document.getElementById('buscar-categoria').value = '';
 
     const { data, error } = await db.rpc('buscar_equipos_por_tipo', { termino });
-    const cont = document.getElementById('buscar-resultados');
-
     if(error || !data || data.length === 0){
-      cont.innerHTML = '<div class="empty">Sin resultados.</div>';
+      document.getElementById('buscar-resultados').innerHTML = '<div class="empty">Sin resultados.</div>';
       return;
     }
-
-    const ids = data.map(e => e.id);
-    const { data: poseedores } = await db
-      .from('equipos')
-      .select('id, usuarios(nombre_completo)')
-      .in('id', ids);
-    const mapaPoseedor = {};
-    (poseedores||[]).forEach(p => { mapaPoseedor[p.id] = p.usuarios?.nombre_completo || null; });
-
-    cont.innerHTML = '<div class="card">' + data.map(eq => {
-      let badge = 'info', texto = mapaPoseedor[eq.id] || 'Asignado';
-      if(eq.estado === 'disponible'){ badge='ok'; texto='Almacén'; }
-      else if(eq.estado === 'solicitud_pendiente'){ badge='warn'; texto = (mapaPoseedor[eq.id] || 'Asignado') + ' (solicitud pendiente)'; }
-      else if(eq.estado === 'solicitud_bloqueada'){ badge='bad'; texto = (mapaPoseedor[eq.id] || 'Asignado') + ' (bloqueada)'; }
-      const marcaInfo = eq.marca ? ' · ' + eq.marca : '';
-      return `<div class="result-row" onclick="verDetalle('${eq.id}','${eq.nº_serie}','${eq.estado}','${(eq.nombre_tipo||'').replace(/'/g,'')}')">
-                <div><strong>${eq.nombre_tipo || 'Equipo'}</strong>${marcaInfo}<br><span style="color:var(--muted);font-size:12px">${eq.nº_serie}</span></div>
-                <span class="badge ${badge}">${texto}</span>
-              </div>`;
-    }).join('') + '</div>';
+    await renderResultadosBusqueda(data);
   }, 300);
+}
+
+async function cargarCategoriasBusqueda(){
+  const { data } = await db.from('tipos_equipo').select('nombre').order('nombre');
+  const categorias = [...new Set((data||[]).map(t => (t.nombre||'').trim().split(' ')[0].toUpperCase()).filter(Boolean))].sort();
+  const sel = document.getElementById('buscar-categoria');
+  sel.innerHTML = '<option value="">— O elige una categoría para ver todo lo que tenemos —</option>' +
+    categorias.map(c => `<option value="${c}">${c}</option>`).join('');
+}
+
+async function buscarPorCategoria(){
+  const categoria = document.getElementById('buscar-categoria').value;
+  document.getElementById('buscar-input').value = '';
+  document.getElementById('detalle-equipo').innerHTML = '';
+  if(!categoria){ document.getElementById('buscar-resultados').innerHTML = ''; return; }
+
+  const { data, error } = await db
+    .from('equipos')
+    .select('id, nº_serie, estado, marca, tipos_equipo(nombre)')
+    .neq('estado', 'baja')
+    .order('nº_serie');
+
+  if(error){ document.getElementById('buscar-resultados').innerHTML = `<div class="empty">Error: ${error.message}</div>`; return; }
+
+  const filtrados = (data||[])
+    .filter(e => (e.tipos_equipo?.nombre||'').trim().toUpperCase().startsWith(categoria))
+    .map(e => ({ id: e.id, nº_serie: e.nº_serie, estado: e.estado, marca: e.marca, nombre_tipo: e.tipos_equipo?.nombre }));
+
+  if(filtrados.length === 0){
+    document.getElementById('buscar-resultados').innerHTML = '<div class="empty">Sin equipos en esta categoría.</div>';
+    return;
+  }
+  await renderResultadosBusqueda(filtrados);
+}
+
+async function renderResultadosBusqueda(data){
+  const cont = document.getElementById('buscar-resultados');
+  const ids = data.map(e => e.id);
+  const { data: poseedores } = await db
+    .from('equipos')
+    .select('id, usuarios(nombre_completo)')
+    .in('id', ids);
+  const mapaPoseedor = {};
+  (poseedores||[]).forEach(p => { mapaPoseedor[p.id] = p.usuarios?.nombre_completo || null; });
+
+  cont.innerHTML = '<div class="card">' + data.map(eq => {
+    let badge = 'info', texto = mapaPoseedor[eq.id] || 'Asignado';
+    if(eq.estado === 'disponible'){ badge='ok'; texto='Almacén'; }
+    else if(eq.estado === 'solicitud_pendiente'){ badge='warn'; texto = (mapaPoseedor[eq.id] || 'Asignado') + ' (solicitud pendiente)'; }
+    else if(eq.estado === 'solicitud_bloqueada'){ badge='bad'; texto = (mapaPoseedor[eq.id] || 'Asignado') + ' (bloqueada)'; }
+    const marcaInfo = eq.marca ? ' · ' + eq.marca : '';
+    return `<div class="result-row" onclick="verDetalle('${eq.id}','${eq.nº_serie}','${eq.estado}','${(eq.nombre_tipo||'').replace(/'/g,'')}')">
+              <div><strong>${eq.nombre_tipo || 'Equipo'}</strong>${marcaInfo}<br><span style="color:var(--muted);font-size:12px">${eq.nº_serie}</span></div>
+              <span class="badge ${badge}">${texto}</span>
+            </div>`;
+  }).join('') + '</div>';
 }
 
 async function verDetalle(equipoId, nSerie, estado, nombreTipo){
