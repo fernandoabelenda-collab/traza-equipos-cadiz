@@ -45,11 +45,11 @@
 
   main{padding:14px 20px; max-width:800px; margin:0 auto;}
   .tabs{
-    display:flex; background:var(--card); border-radius:12px; overflow:hidden;
-    box-shadow:0 1px 3px rgba(0,0,0,.08); margin-bottom:14px;
+    display:flex; background:var(--card); border-radius:10px; overflow:hidden;
+    box-shadow:0 1px 3px rgba(0,0,0,.08); margin-bottom:10px;
   }
   .tab{
-    flex:1; text-align:center; padding:12px; font-weight:600; font-size:15px;
+    flex:1; text-align:center; padding:9px 10px; font-weight:600; font-size:13px;
     color:var(--muted); cursor:pointer; border-bottom:3px solid transparent;
   }
   .tab.active{color:var(--blue); border-bottom-color:var(--accent); background:#F0F7F7;}
@@ -57,25 +57,27 @@
   .view.active{display:block;}
 
   .card{
-    background:var(--card); border-radius:14px; padding:16px; margin-bottom:12px;
+    background:var(--card); border-radius:12px; padding:12px 14px; margin-bottom:8px;
     box-shadow:0 1px 3px rgba(0,0,0,.08);
   }
-  .card-title{font-weight:700; font-size:16px; margin-bottom:4px;}
-  .card-sub{color:var(--muted); font-size:13px; margin-bottom:10px;}
+  .card-title{font-weight:700; font-size:15px; margin-bottom:3px;}
+  .card-sub{color:var(--muted); font-size:12px; margin-bottom:6px;}
   .badge{
-    display:inline-block; padding:3px 10px; border-radius:20px; font-size:12px;
+    display:inline-block; padding:2px 9px; border-radius:20px; font-size:11px;
     font-weight:700; color:#fff;
   }
   .badge.ok{background:var(--ok);} .badge.warn{background:var(--warn);}
   .badge.bad{background:var(--bad);} .badge.info{background:var(--blue-light);}
 
   .btn{
-    display:block; width:100%; padding:14px; border:none; border-radius:10px;
-    font-size:15px; font-weight:600; min-height:48px; cursor:pointer; margin-top:8px;
+    display:block; width:100%; padding:10px; border:none; border-radius:8px;
+    font-size:13px; font-weight:600; min-height:38px; cursor:pointer; margin-top:6px;
   }
   .btn.primary{background:var(--accent); color:#fff;}
   .btn.danger{background:var(--bad); color:#fff;}
   .btn.secondary{background:#EEF2F6; color:var(--blue);}
+  .btn-row{display:flex; gap:8px;}
+  .btn-row .btn{flex:1; width:auto;}
 
   .search-box{
     width:100%; padding:14px; border:1px solid #D1D5DB; border-radius:10px;
@@ -130,9 +132,9 @@
   /* ---- Desktop: layout más amplio y cómodo ---- */
   @media (min-width: 768px){
     main{padding:20px 32px; max-width:960px;}
-    .card{padding:20px;}
-    .tabs{margin-bottom:20px;}
-    .tab{padding:14px 20px; font-size:16px;}
+    .card{padding:14px 18px;}
+    .tabs{margin-bottom:16px;}
+    .tab{padding:11px 16px; font-size:14px;}
     .search-box{padding:16px; font-size:17px;}
     .kpi-strip{gap:12px;}
     .kpi{min-width:140px; padding:16px 20px;}
@@ -775,14 +777,19 @@ async function cargarInventario(){
     if(errMovs) console.error('Error cargando origen de equipos:', errMovs.message);
     (movs||[]).forEach(m => {
       if(inventarioOrigenMap[m.equipo_id]) return;
-      inventarioOrigenMap[m.equipo_id] = m.accion === 'recogida_almacen'
-        ? 'Almacén'
-        : (m.solicitudes?.usuarios?.nombre_completo || 'Otro técnico');
+      inventarioOrigenMap[m.equipo_id] = {
+        nombre: m.accion === 'recogida_almacen' ? 'Almacén' : (m.solicitudes?.usuarios?.nombre_completo || 'Otro técnico'),
+        fecha: m.timestamp
+      };
     });
   }
 
-  const tiposUnicos = [...new Set(inventarioDataCompleta.map(e => e.tipos_equipo?.nombre).filter(Boolean))].sort();
-  const opcionesTipo = tiposUnicos.map(t => `<option value="${t}">${t}</option>`).join('');
+  const categoriasUnicas = [...new Set(
+    inventarioDataCompleta
+      .map(e => (e.tipos_equipo?.nombre || '').trim().split(' ')[0].toUpperCase())
+      .filter(Boolean)
+  )].sort();
+  const opcionesTipo = categoriasUnicas.map(c => `<option value="${c}">${c}</option>`).join('');
 
   document.getElementById('sub-inventario').innerHTML = `
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;">
@@ -811,10 +818,10 @@ async function cargarInventario(){
 }
 
 function filtrarInventario(){
-  const tipo = document.getElementById('filtro-inv-tipo').value;
+  const categoria = document.getElementById('filtro-inv-tipo').value;
   const estado = document.getElementById('filtro-inv-estado').value;
   const filtrada = inventarioDataCompleta.filter(e => {
-    if(tipo && e.tipos_equipo?.nombre !== tipo) return false;
+    if(categoria && !(e.tipos_equipo?.nombre || '').trim().toUpperCase().startsWith(categoria)) return false;
     if(!estado) return true;
     if(estado === 'en_uso') return ['en_uso','solicitud_pendiente','solicitud_bloqueada'].includes(e.estado);
     return e.estado === estado;
@@ -842,7 +849,12 @@ function renderTablaInventario(lista){
       <td>${e.marca||'—'}</td>
       <td><span class="badge ${badgeCls}">${badgeTxt}</span></td>
       <td>${e.usuarios?.nombre_completo || 'Almacén'}</td>
-      <td style="font-size:11px;color:var(--muted);">${(e.estado==='en_uso'||e.estado==='solicitud_pendiente'||e.estado==='solicitud_bloqueada') ? (inventarioOrigenMap[e.id]||'—') : '—'}</td>
+      <td style="font-size:13px;">${(() => {
+        if(!(e.estado==='en_uso'||e.estado==='solicitud_pendiente'||e.estado==='solicitud_bloqueada')) return '—';
+        const o = inventarioOrigenMap[e.id];
+        if(!o) return '—';
+        return `<strong style="font-size:13px;">${o.nombre}</strong>${o.fecha ? `<br><span style="color:var(--muted);font-size:11px;">${new Date(o.fecha).toLocaleDateString('es-ES')}</span>` : ''}`;
+      })()}</td>
       <td style="max-width:160px;font-size:12px;">${e.observaciones||'—'}</td>
       <td style="font-size:11px;color:var(--muted);">${e.fecha_vencimiento_calibracion||'—'}</td>
     </tr>`;
@@ -1112,9 +1124,10 @@ async function cargarMiLinea(){
       } else {
         (movs||[]).forEach(m => {
           if(origenMiLinea[m.equipo_id]) return;
-          origenMiLinea[m.equipo_id] = m.accion === 'recogida_almacen'
-            ? 'Almacén'
-            : (m.solicitudes?.usuarios?.nombre_completo || 'Otro técnico');
+          origenMiLinea[m.equipo_id] = {
+            nombre: m.accion === 'recogida_almacen' ? 'Almacén' : (m.solicitudes?.usuarios?.nombre_completo || 'Otro técnico'),
+            fecha: m.timestamp
+          };
         });
       }
     }
@@ -1126,8 +1139,10 @@ async function cargarMiLinea(){
       <div class="card">
         <div class="card-title">Te piden: ${s.equipos.nº_serie}</div>
         <div class="card-sub">Un compañero necesita este equipo</div>
-        <button class="btn primary" onclick="marcarEntregado('${s.id}')">Entregar</button>
-        <button class="btn danger" onclick="rechazarSolicitud('${s.id}')">No puedo entregarlo ahora</button>
+        <div class="btn-row">
+          <button class="btn primary" onclick="marcarEntregado('${s.id}')">Entregar</button>
+          <button class="btn danger" onclick="rechazarSolicitud('${s.id}')">No puedo ahora</button>
+        </div>
       </div>`;
   });
 
@@ -1162,13 +1177,16 @@ async function cargarMiLinea(){
       if(dias <= 7){ badge='bad'; texto=`Calibración vence en ${dias} días`; }
       else if(dias <= 30){ badge='warn'; texto=`Calibración vence en ${dias} días`; }
     }
+    const origen = origenMiLinea[e.id];
     html += `
       <div class="card">
         <div class="card-title">${e.tipos_equipo?.nombre || 'Equipo'} — ${e.nº_serie}</div>
         <div class="card-sub"><span class="badge ${badge}">${texto}</span></div>
-        <div style="font-size:11px;color:var(--muted);margin-top:4px;">Recibido de: ${origenMiLinea[e.id] || '—'}</div>
-        <button class="btn secondary" onclick="devolverAlmacen('${e.id}')">Devolver a almacén</button>
-        <button class="btn danger" onclick="reportarAveria('${e.id}')">Reportar avería</button>
+        <div style="font-size:13px;margin:4px 0 8px;">Recibido de: <strong style="font-size:14px;">${origen?.nombre || '—'}</strong>${origen?.fecha ? ` <span style="color:var(--muted);font-size:11px;">(${new Date(origen.fecha).toLocaleDateString('es-ES')})</span>` : ''}</div>
+        <div class="btn-row">
+          <button class="btn secondary" onclick="devolverAlmacen('${e.id}')">Devolver</button>
+          <button class="btn danger" onclick="reportarAveria('${e.id}')">Avería</button>
+        </div>
       </div>`;
   });
 
