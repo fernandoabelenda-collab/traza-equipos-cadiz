@@ -950,13 +950,13 @@ async function cargarInventario(){
       .from('movimientos')
       .select('equipo_id, accion, timestamp, solicitudes(usuarios!tecnico_poseedor_id(nombre_completo))')
       .in('equipo_id', idsAsignados)
-      .in('accion', ['recibido','recogida_almacen'])
+      .in('accion', ['recibido','recogida_almacen','asignado_gestor'])
       .order('timestamp', { ascending: false });
     if(errMovs) console.error('Error cargando origen de equipos:', errMovs.message);
     (movs||[]).forEach(m => {
       if(inventarioOrigenMap[m.equipo_id]) return;
       inventarioOrigenMap[m.equipo_id] = {
-        nombre: m.accion === 'recogida_almacen' ? 'Almacén' : (m.solicitudes?.usuarios?.nombre_completo || 'Otro técnico'),
+        nombre: (m.accion === 'recogida_almacen' || m.accion === 'asignado_gestor') ? 'Almacén' : (m.solicitudes?.usuarios?.nombre_completo || 'Otro técnico'),
         fecha: m.timestamp
       };
     });
@@ -1299,7 +1299,7 @@ async function cargarMiLinea(){
         .from('movimientos')
         .select('equipo_id, accion, timestamp, solicitudes(usuarios!tecnico_poseedor_id(nombre_completo))')
         .in('equipo_id', misEquiposIds)
-        .in('accion', ['recibido','recogida_almacen'])
+        .in('accion', ['recibido','recogida_almacen','asignado_gestor'])
         .order('timestamp', { ascending: false });
       if(errMovs){
         console.error('Error cargando origen de Mi línea:', errMovs.message);
@@ -1307,7 +1307,7 @@ async function cargarMiLinea(){
         (movs||[]).forEach(m => {
           if(origenMiLinea[m.equipo_id]) return;
           origenMiLinea[m.equipo_id] = {
-            nombre: m.accion === 'recogida_almacen' ? 'Almacén' : (m.solicitudes?.usuarios?.nombre_completo || 'Otro técnico'),
+            nombre: (m.accion === 'recogida_almacen' || m.accion === 'asignado_gestor') ? 'Almacén' : (m.solicitudes?.usuarios?.nombre_completo || 'Otro técnico'),
             fecha: m.timestamp
           };
         });
