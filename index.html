@@ -68,6 +68,7 @@
   }
   .badge.ok{background:var(--ok);} .badge.warn{background:var(--warn);}
   .badge.bad{background:var(--bad);} .badge.info{background:var(--blue-light);}
+  .badge.obra{background:#B0C4D8; color:#1A3550;}
 
   .btn{
     display:block; width:100%; padding:10px; border:none; border-radius:8px;
@@ -1022,8 +1023,11 @@ function renderTablaInventario(lista){
   const filas = (lista||[]).map(e => {
     let badgeCls = 'info', badgeTxt = e.estado;
     if(e.estado === 'disponible'){
-      badgeCls='ok';
-      badgeTxt = (e.ubicacion_texto && e.ubicacion_texto !== 'Almacén') ? e.ubicacion_texto : 'Almacén';
+      if(e.ubicacion_texto && e.ubicacion_texto !== 'Almacén' && e.ubicacion_texto.toUpperCase() !== 'ALMACEN'){
+        badgeCls='obra'; badgeTxt = e.ubicacion_texto;
+      } else {
+        badgeCls='ok'; badgeTxt='Almacén';
+      }
     }
     else if(e.estado === 'averiado'){ badgeCls='bad'; badgeTxt='Averiado'; }
     else if(e.estado === 'en_calibracion'){ badgeCls='warn'; badgeTxt='En calibración'; }
