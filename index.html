@@ -260,7 +260,10 @@
             <button class="btn secondary" onclick="toggleTipoNuevo()" style="margin-top:6px;font-size:12px;padding:8px;" id="btn-tipo-toggle">¿Tipo nuevo? Crear</button>
           </div>
           <div class="field-grid">
-            <div class="field"><label>Nº serie / ID OCA *</label><input type="text" id="eq-serie" class="search-box"></div>
+            <div class="field"><label>Nº serie *</label><input type="text" id="eq-serie" class="search-box" placeholder="Nº fabricante o S/N"></div>
+            <div class="field"><label>ID OCA *</label><input type="text" id="eq-idoca" class="search-box" placeholder="Nº interno OCA"></div>
+          </div>
+          <div class="field-grid">
             <div class="field"><label>Marca</label><input type="text" id="eq-marca" class="search-box"></div>
             <div class="field"><label>Modelo</label><input type="text" id="eq-modelo" class="search-box"></div>
           </div>
@@ -271,11 +274,6 @@
               <div class="field"><label>Última calibración</label><input type="date" id="eq-fcalib" class="search-box"></div>
               <div class="field"><label>Vencimiento calibración</label><input type="date" id="eq-fvenc" class="search-box"></div>
             </div>
-          </div>
-
-          <div class="form-section">
-            <div class="form-section-title">Ubicación</div>
-            <div class="field"><label>Ubicación inicial</label><input type="text" id="eq-ubicacion" class="search-box" placeholder="Almacén, Furgoneta..."></div>
           </div>
 
           <button class="btn primary" onclick="altaEquipo()">Dar de alta</button>
@@ -464,13 +462,13 @@ async function altaEquipo(){
   let tipoId = document.getElementById('eq-tipo').value;
   const tipoNuevo = document.getElementById('eq-tipo-nuevo').value.trim();
   const serie = document.getElementById('eq-serie').value.trim();
+  const idOca = document.getElementById('eq-idoca').value.trim();
   const marca = document.getElementById('eq-marca').value.trim() || null;
   const modelo = document.getElementById('eq-modelo').value.trim() || null;
   const fCalib = document.getElementById('eq-fcalib').value || null;
   const fVenc = document.getElementById('eq-fvenc').value || null;
-  const ubi = document.getElementById('eq-ubicacion').value.trim() || 'Almacén';
 
-  if(!serie){ mostrarToast('El nº de serie es obligatorio.'); return; }
+  if(!serie || !idOca){ mostrarToast('El nº de serie y la ID OCA son obligatorios.'); return; }
 
   if(tipoNuevo && !tipoId){
     const { data: nuevoTipo, error: errTipo } = await db.from('tipos_equipo')
@@ -483,10 +481,10 @@ async function altaEquipo(){
 
   const { data: deleg } = await db.from('delegaciones').select('id').limit(1).single();
   const { error } = await db.from('equipos').insert({
-    tipo_equipo_id: tipoId, nº_serie: serie, marca, modelo, estado: 'disponible',
+    tipo_equipo_id: tipoId, nº_serie: serie, id_oca: idOca, marca, modelo, estado: 'disponible',
     delegacion_propietaria_id: deleg.id, delegacion_actual_id: deleg.id,
     fecha_ultima_calibracion: fCalib, fecha_vencimiento_calibracion: fVenc,
-    ubicacion_texto: ubi
+    ubicacion_texto: 'Almacén'
   });
   if(error){ mostrarToast('Error: ' + error.message); return; }
 
@@ -496,7 +494,7 @@ async function altaEquipo(){
   });
 
   mostrarToast('Equipo dado de alta correctamente.');
-  ['eq-serie','eq-marca','eq-modelo','eq-fcalib','eq-fvenc','eq-ubicacion','eq-tipo-nuevo'].forEach(id => document.getElementById(id).value = '');
+  ['eq-serie','eq-idoca','eq-marca','eq-modelo','eq-fcalib','eq-fvenc','eq-tipo-nuevo'].forEach(id => document.getElementById(id).value = '');
   document.getElementById('eq-tipo').value = '';
   cargarSelectorTipos();
 }
@@ -507,8 +505,8 @@ async function buscarParaEditar(){
   if(termino.length < 2){ document.getElementById('edit-resultados').innerHTML = ''; return; }
 
   const { data } = await db.from('equipos')
-    .select('id, nº_serie, estado, marca, modelo, fecha_ultima_calibracion, fecha_vencimiento_calibracion, ubicacion_texto, tipos_equipo(nombre)')
-    .or(`nº_serie.ilike.%${termino}%`)
+    .select('id, nº_serie, id_oca, estado, marca, modelo, fecha_ultima_calibracion, fecha_vencimiento_calibracion, ubicacion_texto, tipos_equipo(nombre)')
+    .or(`nº_serie.ilike.%${termino}%,id_oca.ilike.%${termino}%`)
     .limit(10);
 
   if(!data || data.length === 0){
@@ -530,13 +528,13 @@ async function buscarParaEditar(){
 async function abrirEdicion(equipoId){
   document.getElementById('edit-resultados').innerHTML = '';
   const { data: e } = await db.from('equipos')
-    .select('id, nº_serie, estado, marca, modelo, observaciones, fecha_ultima_calibracion, fecha_vencimiento_calibracion, ubicacion_texto, tipos_equipo(nombre)')
+    .select('id, nº_serie, id_oca, estado, marca, modelo, observaciones, fecha_ultima_calibracion, fecha_vencimiento_calibracion, ubicacion_texto, tipos_equipo(nombre)')
     .eq('id', equipoId).single();
   if(!e) return;
 
   document.getElementById('edit-formulario').innerHTML = `
     <div class="card" style="margin-top:10px; border-left:4px solid var(--accent);">
-      <div class="card-title">${e.tipos_equipo?.nombre||'Equipo'} — ${e.nº_serie}</div>
+      <div class="card-title">${e.tipos_equipo?.nombre||'Equipo'} — ${e.nº_serie} (ID: ${e.id_oca||'—'})</div>
 
       <div class="form-section-title">Estado y ubicación</div>
       <div class="field-grid">
@@ -550,13 +548,19 @@ async function abrirEdicion(equipoId){
             <option value="baja" ${e.estado==='baja'?'selected':''}>Baja</option>
           </select>
         </div>
-        <div class="field"><label>Ubicación</label><input type="text" class="search-box" id="ed-ubicacion" value="${e.ubicacion_texto||''}"></div>
+        <div class="field"><label>Ubicación / Obra</label><input type="text" class="search-box" id="ed-ubicacion" value="${e.ubicacion_texto||''}"></div>
       </div>
 
       <div class="form-section">
         <div class="form-section-title">Identificación</div>
-        <div class="field"><label>Marca</label><input type="text" class="search-box" id="ed-marca" value="${e.marca||''}"></div>
-        <div class="field"><label>Modelo</label><input type="text" class="search-box" id="ed-modelo" value="${e.modelo||''}"></div>
+        <div class="field-grid">
+          <div class="field"><label>Nº serie</label><input type="text" class="search-box" id="ed-serie" value="${e.nº_serie||''}"></div>
+          <div class="field"><label>ID OCA</label><input type="text" class="search-box" id="ed-idoca" value="${e.id_oca||''}"></div>
+        </div>
+        <div class="field-grid">
+          <div class="field"><label>Marca</label><input type="text" class="search-box" id="ed-marca" value="${e.marca||''}"></div>
+          <div class="field"><label>Modelo</label><input type="text" class="search-box" id="ed-modelo" value="${e.modelo||''}"></div>
+        </div>
       </div>
 
       <div class="form-section">
@@ -578,6 +582,8 @@ async function abrirEdicion(equipoId){
 
 async function guardarEdicion(equipoId){
   const updates = {
+    nº_serie: document.getElementById('ed-serie').value.trim() || null,
+    id_oca: document.getElementById('ed-idoca').value.trim() || null,
     marca: document.getElementById('ed-marca').value.trim() || null,
     modelo: document.getElementById('ed-modelo').value.trim() || null,
     fecha_ultima_calibracion: document.getElementById('ed-fcalib').value || null,
@@ -840,7 +846,7 @@ async function buscarAlternativa(solicitudId, equipoOriginalId, tipoId, tipoNomb
 
   const { data: alternativas, error } = await db
     .from('equipos')
-    .select('id, nº_serie, estado, usuarios(nombre_completo)')
+    .select('id, nº_serie, id_oca, estado, usuarios(nombre_completo)')
     .eq('tipo_equipo_id', tipoId)
     .neq('id', equipoOriginalId)
     .in('estado', ['disponible','en_uso']);
@@ -932,7 +938,7 @@ let inventarioEntregadosEsperando = new Set();
 async function cargarInventario(){
   const { data } = await db
     .from('equipos')
-    .select('id, nº_serie, estado, marca, modelo, ubicacion_texto, observaciones, fecha_ultima_calibracion, fecha_vencimiento_calibracion, tipos_equipo(nombre), usuarios(nombre_completo)')
+    .select('id, nº_serie, id_oca, estado, marca, modelo, ubicacion_texto, observaciones, fecha_ultima_calibracion, fecha_vencimiento_calibracion, tipos_equipo(nombre), usuarios(nombre_completo)')
     .neq('estado','baja')
     .order('nº_serie');
 
@@ -992,7 +998,7 @@ async function cargarInventario(){
     <div id="inventario-edicion"></div>
     <div style="overflow-x:auto;">
       <table class="inv" id="tabla-inventario">
-        <tr><th>Nº Serie</th><th>Tipo</th><th>Marca</th><th>Modelo</th><th>Estado</th><th>Ubicación</th><th>Recibido de</th><th>Observaciones</th><th>Venc. Calib.</th></tr>
+        <tr><th>Nº Serie</th><th>ID OCA</th><th>Tipo</th><th>Marca</th><th>Modelo</th><th>Estado</th><th>Recibido de</th><th>Observaciones</th><th>Venc. Calib.</th></tr>
       </table>
     </div>
     <div style="color:var(--muted);font-size:12px;margin-top:8px;" id="inventario-total"></div>`;
@@ -1015,7 +1021,10 @@ function filtrarInventario(){
 function renderTablaInventario(lista){
   const filas = (lista||[]).map(e => {
     let badgeCls = 'info', badgeTxt = e.estado;
-    if(e.estado === 'disponible'){ badgeCls='ok'; badgeTxt='Almacén'; }
+    if(e.estado === 'disponible'){
+      badgeCls='ok';
+      badgeTxt = (e.ubicacion_texto && e.ubicacion_texto !== 'Almacén') ? e.ubicacion_texto : 'Almacén';
+    }
     else if(e.estado === 'averiado'){ badgeCls='bad'; badgeTxt='Averiado'; }
     else if(e.estado === 'en_calibracion'){ badgeCls='warn'; badgeTxt='En calibración'; }
     else if(e.estado === 'solicitud_pendiente'){
@@ -1028,11 +1037,11 @@ function renderTablaInventario(lista){
     else if(e.estado === 'en_uso'){ badgeCls='info'; badgeTxt = e.usuarios?.nombre_completo || 'Asignado'; }
     return `<tr onclick="editarDesdeInventario('${e.id}')" style="cursor:pointer;" title="Clic para editar">
       <td><strong>${e.nº_serie}</strong></td>
+      <td>${e.id_oca||'—'}</td>
       <td>${e.tipos_equipo?.nombre||'—'}</td>
       <td>${e.marca||'—'}</td>
       <td>${e.modelo||'—'}</td>
       <td><span class="badge ${badgeCls}">${badgeTxt}</span></td>
-      <td>${e.ubicacion_texto || '—'}</td>
       <td style="font-size:13px;">${(() => {
         if(!(e.estado==='en_uso'||e.estado==='solicitud_pendiente'||e.estado==='solicitud_bloqueada')) return '—';
         const o = inventarioOrigenMap[e.id];
@@ -1045,14 +1054,14 @@ function renderTablaInventario(lista){
   }).join('');
 
   document.getElementById('tabla-inventario').innerHTML = `
-    <tr><th>Nº Serie</th><th>Tipo</th><th>Marca</th><th>Modelo</th><th>Estado</th><th>Ubicación</th><th>Recibido de</th><th>Observaciones</th><th>Venc. Calib.</th></tr>
+    <tr><th>Nº Serie</th><th>ID OCA</th><th>Tipo</th><th>Marca</th><th>Modelo</th><th>Estado</th><th>Recibido de</th><th>Observaciones</th><th>Venc. Calib.</th></tr>
     ${filas || '<tr><td colspan="9" class="empty">Sin equipos que coincidan con el filtro.</td></tr>'}`;
   document.getElementById('inventario-total').textContent = `Total: ${(lista||[]).length} equipos`;
 }
 
 async function editarDesdeInventario(equipoId){
   const { data: e } = await db.from('equipos')
-    .select('id, nº_serie, estado, marca, modelo, fecha_ultima_calibracion, fecha_vencimiento_calibracion, ubicacion_texto, observaciones, tipos_equipo(nombre)')
+    .select('id, nº_serie, id_oca, estado, marca, modelo, fecha_ultima_calibracion, fecha_vencimiento_calibracion, ubicacion_texto, observaciones, tipos_equipo(nombre)')
     .eq('id', equipoId).single();
   if(!e) return;
 
@@ -1060,10 +1069,18 @@ async function editarDesdeInventario(equipoId){
   cont.innerHTML = `
     <div class="card" style="border-left:4px solid var(--accent); margin-bottom:14px;">
       <div style="display:flex;justify-content:space-between;align-items:center;">
-        <div class="card-title">${e.tipos_equipo?.nombre||'Equipo'} — ${e.nº_serie}</div>
+        <div class="card-title">${e.tipos_equipo?.nombre||'Equipo'} — ${e.nº_serie} (ID: ${e.id_oca||'—'})</div>
         <span onclick="document.getElementById('inventario-edicion').innerHTML=''" style="cursor:pointer;font-size:20px;color:var(--muted);">✕</span>
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+        <div>
+          <label style="font-size:12px;color:var(--muted);">Nº serie</label>
+          <input type="text" class="search-box" id="inv-serie" value="${e.nº_serie||''}" placeholder="Nº serie">
+        </div>
+        <div>
+          <label style="font-size:12px;color:var(--muted);">ID OCA</label>
+          <input type="text" class="search-box" id="inv-idoca" value="${e.id_oca||''}" placeholder="ID OCA">
+        </div>
         <div>
           <label style="font-size:12px;color:var(--muted);">Marca</label>
           <input type="text" class="search-box" id="inv-marca" value="${e.marca||''}" placeholder="Marca">
@@ -1073,7 +1090,7 @@ async function editarDesdeInventario(equipoId){
           <input type="text" class="search-box" id="inv-modelo" value="${e.modelo||''}" placeholder="Modelo">
         </div>
         <div>
-          <label style="font-size:12px;color:var(--muted);">Ubicación</label>
+          <label style="font-size:12px;color:var(--muted);">Ubicación / Obra</label>
           <input type="text" class="search-box" id="inv-ubicacion" value="${e.ubicacion_texto||''}" placeholder="Ubicación">
         </div>
         <div>
@@ -1106,6 +1123,8 @@ async function editarDesdeInventario(equipoId){
 
 async function guardarDesdeInventario(equipoId){
   const updates = {
+    nº_serie: document.getElementById('inv-serie').value.trim() || null,
+    id_oca: document.getElementById('inv-idoca').value.trim() || null,
     marca: document.getElementById('inv-marca').value.trim() || null,
     modelo: document.getElementById('inv-modelo').value.trim() || null,
     ubicacion_texto: document.getElementById('inv-ubicacion').value.trim() || null,
@@ -1129,7 +1148,7 @@ async function guardarDesdeInventario(equipoId){
 async function cargarCalibraciones(){
   const { data } = await db
     .from('equipos')
-    .select('id, nº_serie, marca, fecha_ultima_calibracion, fecha_vencimiento_calibracion, tipos_equipo(nombre), usuarios(nombre_completo)')
+    .select('id, nº_serie, id_oca, marca, fecha_ultima_calibracion, fecha_vencimiento_calibracion, tipos_equipo(nombre), usuarios(nombre_completo)')
     .not('fecha_vencimiento_calibracion','is',null)
     .order('fecha_vencimiento_calibracion');
 
@@ -1150,6 +1169,7 @@ async function cargarCalibraciones(){
     const texto = e._dias < 0 ? `Vencida hace ${Math.abs(e._dias)}d` : `${e._dias} días`;
     return `<tr>
       <td><strong>${e.nº_serie}</strong></td>
+      <td>${e.id_oca||'—'}</td>
       <td>${e.tipos_equipo?.nombre||'—'}</td>
       <td>${e.marca||'—'}</td>
       <td>${e.fecha_ultima_calibracion||'—'}</td>
@@ -1166,7 +1186,7 @@ async function cargarCalibraciones(){
         <div class="card-title" style="color:var(--${color})">${titulo} (${items.length})</div>
         <div style="overflow-x:auto;">
           <table class="inv">
-            <tr><th>Nº Serie</th><th>Tipo</th><th>Marca</th><th>Últ. Calibración</th><th>Vencimiento</th><th>Quedan</th><th>Poseedor</th></tr>
+            <tr><th>Nº Serie</th><th>ID OCA</th><th>Tipo</th><th>Marca</th><th>Últ. Calibración</th><th>Vencimiento</th><th>Quedan</th><th>Poseedor</th></tr>
             ${items.map(filaCalib).join('')}
           </table>
         </div>
@@ -1298,7 +1318,7 @@ async function cargarMiLinea(){
     // 3. Mis equipos actuales
     const { data: misEquipos, error: errMisEquipos } = await db
       .from('equipos')
-      .select('id, nº_serie, estado, fecha_vencimiento_calibracion, tipos_equipo(nombre)')
+      .select('id, nº_serie, id_oca, estado, fecha_vencimiento_calibracion, tipos_equipo(nombre)')
       .eq('tecnico_actual_id', usuarioActual.id);
     if(errMisEquipos) throw errMisEquipos;
 
@@ -1486,7 +1506,7 @@ async function buscarPorCategoria(){
 
   const { data, error } = await db
     .from('equipos')
-    .select('id, nº_serie, estado, marca, modelo, tipos_equipo(nombre)')
+    .select('id, nº_serie, id_oca, estado, marca, modelo, tipos_equipo(nombre)')
     .neq('estado', 'baja')
     .order('nº_serie');
 
