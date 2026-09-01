@@ -1179,7 +1179,7 @@ async function cargarCalibraciones(){
       <td>${e.fecha_ultima_calibracion||'—'}</td>
       <td>${e.fecha_vencimiento_calibracion||'—'}</td>
       <td><span class="badge ${badge}">${texto}</span></td>
-      <td>${e.usuarios?.nombre_completo||'Almacén'}</td>
+      <td>${e.usuarios?.nombre_completo || ((e.ubicacion_texto && e.ubicacion_texto.toUpperCase() !== 'ALMACEN' && e.ubicacion_texto !== 'Almacén') ? e.ubicacion_texto : 'Almacén')}</td>
     </tr>`;
   };
 
