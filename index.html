@@ -529,16 +529,28 @@ async function buscarParaEditar(){
 async function abrirEdicion(equipoId){
   document.getElementById('edit-resultados').innerHTML = '';
   const { data: e } = await db.from('equipos')
-    .select('id, nº_serie, id_oca, estado, marca, modelo, observaciones, fecha_ultima_calibracion, fecha_vencimiento_calibracion, ubicacion_texto, tipos_equipo(nombre)')
+    .select('id, nº_serie, id_oca, estado, marca, modelo, observaciones, fecha_ultima_calibracion, fecha_vencimiento_calibracion, ubicacion_texto, tecnico_actual_id, tipos_equipo(nombre)')
     .eq('id', equipoId).single();
   if(!e) return;
+
+  const { data: tecnicos } = await db.from('usuarios').select('id, nombre_completo').order('nombre_completo');
+  const opcionesTecnicos = (tecnicos||[]).map(t =>
+    `<option value="${t.id}" ${e.tecnico_actual_id === t.id ? 'selected' : ''}>${t.nombre_completo}</option>`
+  ).join('');
 
   document.getElementById('edit-formulario').innerHTML = `
     <div class="card" style="margin-top:10px; border-left:4px solid var(--accent);">
       <div class="card-title">${e.tipos_equipo?.nombre||'Equipo'} — ${e.nº_serie} (ID: ${e.id_oca||'—'})</div>
 
-      <div class="form-section-title">Estado y ubicación</div>
+      <div class="form-section-title">Asignación</div>
       <div class="field-grid">
+        <div class="field">
+          <label>Técnico asignado</label>
+          <select class="search-box" id="ed-tecnico">
+            <option value="" ${!e.tecnico_actual_id ? 'selected' : ''}>Almacén (sin asignar)</option>
+            ${opcionesTecnicos}
+          </select>
+        </div>
         <div class="field">
           <label>Estado</label>
           <select class="search-box" id="ed-estado">
@@ -549,8 +561,8 @@ async function abrirEdicion(equipoId){
             <option value="baja" ${e.estado==='baja'?'selected':''}>Baja</option>
           </select>
         </div>
-        <div class="field"><label>Ubicación / Obra</label><input type="text" class="search-box" id="ed-ubicacion" value="${e.ubicacion_texto||''}"></div>
       </div>
+      <div class="field"><label>Ubicación / Obra</label><input type="text" class="search-box" id="ed-ubicacion" value="${e.ubicacion_texto||''}"></div>
 
       <div class="form-section">
         <div class="form-section-title">Identificación</div>
@@ -582,7 +594,13 @@ async function abrirEdicion(equipoId){
 }
 
 async function guardarEdicion(equipoId){
+  const tecnicoId = document.getElementById('ed-tecnico').value || null;
+  let estado = document.getElementById('ed-estado').value;
+  if(tecnicoId && estado === 'disponible') estado = 'en_uso';
+  if(!tecnicoId && estado === 'en_uso') estado = 'disponible';
+
   const updates = {
+    tecnico_actual_id: tecnicoId,
     nº_serie: document.getElementById('ed-serie').value.trim() || null,
     id_oca: document.getElementById('ed-idoca').value.trim() || null,
     marca: document.getElementById('ed-marca').value.trim() || null,
@@ -591,14 +609,15 @@ async function guardarEdicion(equipoId){
     fecha_vencimiento_calibracion: document.getElementById('ed-fvenc').value || null,
     ubicacion_texto: document.getElementById('ed-ubicacion').value.trim() || null,
     observaciones: document.getElementById('ed-observaciones').value.trim() || null,
-    estado: document.getElementById('ed-estado').value,
+    estado,
   };
   const { error } = await db.from('equipos').update(updates).eq('id', equipoId);
   if(error){ mostrarToast('Error al guardar: ' + error.message); return; }
 
   await db.from('movimientos').insert({
-    equipo_id: equipoId, usuario_id: usuarioActual.id, accion: 'calibrado',
-    detalle: 'Editado desde Panel Gestor'
+    equipo_id: equipoId, usuario_id: usuarioActual.id,
+    accion: tecnicoId ? 'entrega_directa_gestor' : 'devolucion_almacen',
+    detalle: 'Asignación manual desde Panel Gestor'
   });
   mostrarToast('Equipo actualizado.');
   document.getElementById('edit-formulario').innerHTML = '';
@@ -1065,9 +1084,14 @@ function renderTablaInventario(lista){
 
 async function editarDesdeInventario(equipoId){
   const { data: e } = await db.from('equipos')
-    .select('id, nº_serie, id_oca, estado, marca, modelo, fecha_ultima_calibracion, fecha_vencimiento_calibracion, ubicacion_texto, observaciones, tipos_equipo(nombre)')
+    .select('id, nº_serie, id_oca, estado, marca, modelo, fecha_ultima_calibracion, fecha_vencimiento_calibracion, ubicacion_texto, observaciones, tecnico_actual_id, tipos_equipo(nombre)')
     .eq('id', equipoId).single();
   if(!e) return;
+
+  const { data: tecnicos } = await db.from('usuarios').select('id, nombre_completo').order('nombre_completo');
+  const opcionesTecnicos = (tecnicos||[]).map(t =>
+    `<option value="${t.id}" ${e.tecnico_actual_id === t.id ? 'selected' : ''}>${t.nombre_completo}</option>`
+  ).join('');
 
   const cont = document.getElementById('inventario-edicion');
   cont.innerHTML = `
@@ -1077,6 +1101,23 @@ async function editarDesdeInventario(equipoId){
         <span onclick="document.getElementById('inventario-edicion').innerHTML=''" style="cursor:pointer;font-size:20px;color:var(--muted);">✕</span>
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+        <div>
+          <label style="font-size:12px;color:var(--muted);">Técnico asignado</label>
+          <select class="search-box" id="inv-tecnico">
+            <option value="" ${!e.tecnico_actual_id ? 'selected' : ''}>Almacén (sin asignar)</option>
+            ${opcionesTecnicos}
+          </select>
+        </div>
+        <div>
+          <label style="font-size:12px;color:var(--muted);">Estado</label>
+          <select class="search-box" id="inv-estado">
+            <option value="disponible" ${e.estado==='disponible'?'selected':''}>Disponible</option>
+            <option value="en_uso" ${e.estado==='en_uso'?'selected':''}>En uso</option>
+            <option value="en_calibracion" ${e.estado==='en_calibracion'?'selected':''}>En calibración</option>
+            <option value="averiado" ${e.estado==='averiado'?'selected':''}>Averiado</option>
+            <option value="baja" ${e.estado==='baja'?'selected':''}>Baja</option>
+          </select>
+        </div>
         <div>
           <label style="font-size:12px;color:var(--muted);">Nº serie</label>
           <input type="text" class="search-box" id="inv-serie" value="${e.nº_serie||''}" placeholder="Nº serie">
@@ -1107,16 +1148,6 @@ async function editarDesdeInventario(equipoId){
         </div>
       </div>
       <div>
-        <label style="font-size:12px;color:var(--muted);">Estado</label>
-        <select class="search-box" id="inv-estado">
-          <option value="disponible" ${e.estado==='disponible'?'selected':''}>Disponible</option>
-          <option value="en_uso" ${e.estado==='en_uso'?'selected':''}>En uso</option>
-          <option value="en_calibracion" ${e.estado==='en_calibracion'?'selected':''}>En calibración</option>
-          <option value="averiado" ${e.estado==='averiado'?'selected':''}>Averiado</option>
-          <option value="baja" ${e.estado==='baja'?'selected':''}>Baja</option>
-        </select>
-      </div>
-      <div>
         <label style="font-size:12px;color:var(--muted);">Observaciones</label>
         <textarea class="search-box" id="inv-obs" rows="2" placeholder="Escribe observaciones...">${e.observaciones||''}</textarea>
       </div>
@@ -1126,7 +1157,13 @@ async function editarDesdeInventario(equipoId){
 }
 
 async function guardarDesdeInventario(equipoId){
+  const tecnicoId = document.getElementById('inv-tecnico').value || null;
+  let estado = document.getElementById('inv-estado').value;
+  if(tecnicoId && estado === 'disponible') estado = 'en_uso';
+  if(!tecnicoId && estado === 'en_uso') estado = 'disponible';
+
   const updates = {
+    tecnico_actual_id: tecnicoId,
     nº_serie: document.getElementById('inv-serie').value.trim() || null,
     id_oca: document.getElementById('inv-idoca').value.trim() || null,
     marca: document.getElementById('inv-marca').value.trim() || null,
@@ -1134,15 +1171,16 @@ async function guardarDesdeInventario(equipoId){
     ubicacion_texto: document.getElementById('inv-ubicacion').value.trim() || null,
     fecha_ultima_calibracion: document.getElementById('inv-fcalib').value || null,
     fecha_vencimiento_calibracion: document.getElementById('inv-fvenc').value || null,
-    estado: document.getElementById('inv-estado').value,
+    estado,
     observaciones: document.getElementById('inv-obs').value.trim() || null,
   };
   const { error } = await db.from('equipos').update(updates).eq('id', equipoId);
   if(error){ mostrarToast('Error: ' + error.message); return; }
 
   await db.from('movimientos').insert({
-    equipo_id: equipoId, usuario_id: usuarioActual.id, accion: 'calibrado',
-    detalle: 'Editado desde inventario'
+    equipo_id: equipoId, usuario_id: usuarioActual.id,
+    accion: tecnicoId ? 'entrega_directa_gestor' : 'devolucion_almacen',
+    detalle: 'Asignación manual desde inventario'
   });
   mostrarToast('Equipo actualizado.');
   document.getElementById('inventario-edicion').innerHTML = '';
