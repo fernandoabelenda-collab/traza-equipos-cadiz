@@ -836,6 +836,10 @@ async function cargarSolicitudesVivo(){
          <button class="btn secondary" style="margin-top:6px;width:100%;font-size:12px;padding:6px;"
            onclick="enviarRecordatorioEntrega('${s.id}','${s.equipo_id}','${destino.replace(/'/g,'')}')">Enviar recordatorio</button>`
       : '';
+    const botonAlmacen = (s.estado === 'pendiente' && destino === 'Almacén')
+      ? `<button class="btn primary" style="margin-top:6px;width:100%;font-size:12px;padding:8px;"
+           onclick="entregarDesdeAlmacen('${s.id}','${s.equipo_id}')">Entregar desde almacén</button>`
+      : '';
     const fechaEntrega = (s.estado === 'entregado' && s.fecha_entrega)
       ? `<div>🕒 Entrega sin confirmar desde: <strong>${new Date(s.fecha_entrega).toLocaleString('es-ES', {day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'})}</strong></div>`
       : '';
@@ -853,6 +857,7 @@ async function cargarSolicitudesVivo(){
         <div>➡️ A: <strong>${destino}</strong></div>
         ${fechaSolicitud}
         ${avisoPendiente}
+        ${botonAlmacen}
         ${fechaEntrega}
         ${avisoSinConfirmar}
       </div>
@@ -953,6 +958,21 @@ async function enviarRecordatorio(solicitudId, equipoId, nombreReceptor){
   });
   if(errMov) console.error('Error registrando recordatorio en movimientos:', errMov.message);
   mostrarToast(`Recordatorio enviado a ${nombreReceptor} por Telegram.`);
+}
+
+async function entregarDesdeAlmacen(solicitudId, equipoId){
+  if(!confirm('¿Confirmas que entregas este equipo del almacén al técnico solicitante?')) return;
+  const { error: errSol } = await db.from('solicitudes')
+    .update({ estado: 'entregado', fecha_entrega: new Date().toISOString() })
+    .eq('id', solicitudId);
+  if(errSol){ mostrarToast('Error: ' + errSol.message); return; }
+
+  await db.from('movimientos').insert({
+    equipo_id: equipoId, solicitud_id: solicitudId, usuario_id: usuarioActual.id,
+    accion: 'entregado', detalle: 'Entregado desde almacén por gestor'
+  });
+  mostrarToast('Equipo entregado. El técnico debe confirmar la recepción.');
+  cargarSolicitudesVivo();
 }
 
 async function enviarRecordatorioEntrega(solicitudId, equipoId, nombrePoseedor){
