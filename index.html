@@ -1489,6 +1489,7 @@ async function altaUsuario(){
   const codigo = crypto.randomUUID().slice(0,8);
 
   const { error } = await db.from('usuarios').insert({
+    id: crypto.randomUUID(),
     nombre_completo: nombre, email, rol, telefono,
     codigo_invitacion: codigo, activo: true
   });
@@ -1496,7 +1497,7 @@ async function altaUsuario(){
 
   const enlaceTG = `https://t.me/Traza_equipos_Cadiz_bot?start=${codigo}`;
   mostrarToast('Usuario creado.');
-  alert(`Usuario creado correctamente.\n\nDatos para enviarle:\n• URL: la misma de la app\n• Contraseña: créala en Supabase → Authentication → Add user\n• Telegram: ${enlaceTG}`);
+  alert(`Usuario creado en el sistema.\n\nPasos pendientes:\n\n1. Ve a Supabase → Authentication → Add user\n   Email: ${email}\n   Contraseña: la que elijas\n   Marca "Auto Confirm User"\n\n2. IMPORTANTE: copia el UUID del usuario creado en Auth y actualiza el registro en la tabla usuarios (para que el login funcione)\n\n3. Envíale al técnico:\n   • URL de la app\n   • Email: ${email}\n   • Contraseña\n   • Telegram: https://t.me/Traza_equipos_Cadiz_bot?start=${codigo}`);
 
   ['usr-nombre','usr-email','usr-telefono'].forEach(id => document.getElementById(id).value = '');
   document.getElementById('usr-rol').value = 'tecnico';
