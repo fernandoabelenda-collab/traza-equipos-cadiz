@@ -1590,58 +1590,51 @@ async function buscarEquipos(){
   }, 300);
 }
 
+let busquedaEquiposCache = [];
+
 async function cargarCategoriasBusqueda(){
-  const { data } = await db.from('equipos').select('tipos_equipo(nombre)').neq('estado','baja');
-  const categorias = [...new Set((data||[]).map(e => (e.tipos_equipo?.nombre||'').trim().split(' ')[0].toUpperCase()).filter(Boolean))].sort();
+  const { data } = await db.from('equipos')
+    .select('id, nº_serie, id_oca, estado, marca, modelo, ubicacion_texto, tipos_equipo(nombre), usuarios(nombre_completo)')
+    .neq('estado','baja')
+    .order('nº_serie');
+  busquedaEquiposCache = data || [];
+
+  const categorias = [...new Set(busquedaEquiposCache.map(e => (e.tipos_equipo?.nombre||'').trim().split(' ')[0].toUpperCase()).filter(Boolean))].sort();
   const sel = document.getElementById('buscar-categoria');
   sel.innerHTML = '<option value="">— Elige una categoría —</option>' +
     categorias.map(c => `<option value="${c}">${c}</option>`).join('');
 }
 
-async function buscarPorCategoria(){
+function buscarPorCategoria(){
   const categoria = document.getElementById('buscar-categoria').value;
-  if(document.getElementById('buscar-input')) document.getElementById('buscar-input').value = '';
   document.getElementById('detalle-equipo').innerHTML = '';
-  if(!categoria){ document.getElementById('buscar-resultados').innerHTML = ''; return; }
+  const cont = document.getElementById('buscar-resultados');
+  if(!categoria){ cont.innerHTML = ''; return; }
 
-  const { data, error } = await db
-    .from('equipos')
-    .select('id, nº_serie, id_oca, estado, marca, modelo, tipos_equipo(nombre)')
-    .neq('estado', 'baja')
-    .order('nº_serie');
-
-  if(error){ document.getElementById('buscar-resultados').innerHTML = `<div class="empty">Error: ${error.message}</div>`; return; }
-
-  const filtrados = (data||[])
-    .filter(e => (e.tipos_equipo?.nombre||'').trim().toUpperCase().startsWith(categoria))
-    .map(e => ({ id: e.id, nº_serie: e.nº_serie, id_oca: e.id_oca, estado: e.estado, marca: e.marca, nombre_tipo: e.tipos_equipo?.nombre }));
+  const filtrados = busquedaEquiposCache.filter(e =>
+    (e.tipos_equipo?.nombre||'').trim().toUpperCase().startsWith(categoria)
+  );
 
   if(filtrados.length === 0){
-    document.getElementById('buscar-resultados').innerHTML = '<div class="empty">Sin equipos en esta categoría.</div>';
+    cont.innerHTML = '<div class="empty">Sin equipos en esta categoría.</div>';
     return;
   }
-  await renderResultadosBusqueda(filtrados);
-}
 
-async function renderResultadosBusqueda(data){
-  const cont = document.getElementById('buscar-resultados');
-  const ids = data.map(e => e.id);
-  const { data: poseedores } = await db
-    .from('equipos')
-    .select('id, usuarios(nombre_completo)')
-    .in('id', ids);
-  const mapaPoseedor = {};
-  (poseedores||[]).forEach(p => { mapaPoseedor[p.id] = p.usuarios?.nombre_completo || null; });
-
-  cont.innerHTML = '<div class="card">' + data.map(eq => {
-    let badge = 'info', texto = mapaPoseedor[eq.id] || 'Asignado';
-    if(eq.estado === 'disponible'){ badge='ok'; texto='Almacén'; }
-    else if(eq.estado === 'solicitud_pendiente'){ badge='warn'; texto = (mapaPoseedor[eq.id] || 'Asignado') + ' (solicitud pendiente)'; }
-    else if(eq.estado === 'solicitud_bloqueada'){ badge='bad'; texto = (mapaPoseedor[eq.id] || 'Asignado') + ' (bloqueada)'; }
+  cont.innerHTML = '<div class="card">' + filtrados.map(eq => {
+    const nombre = eq.tipos_equipo?.nombre || 'Equipo';
+    const poseedor = eq.usuarios?.nombre_completo;
+    let badge = 'info', texto = poseedor || 'Asignado';
+    if(eq.estado === 'disponible'){
+      badge = 'ok';
+      texto = (eq.ubicacion_texto && eq.ubicacion_texto.toUpperCase() !== 'ALMACEN' && eq.ubicacion_texto !== 'Almacén') ? eq.ubicacion_texto : 'Almacén';
+    }
+    else if(eq.estado === 'solicitud_pendiente'){ badge='warn'; texto = (poseedor || 'Asignado') + ' (solicitud pendiente)'; }
+    else if(eq.estado === 'solicitud_bloqueada'){ badge='bad'; texto = (poseedor || 'Asignado') + ' (bloqueada)'; }
     const marcaInfo = eq.marca ? ' · ' + eq.marca : '';
+    const modeloInfo = eq.modelo ? ' · ' + eq.modelo : '';
     const idInfo = eq.id_oca ? ` · ID: ${eq.id_oca}` : '';
-    return `<div class="result-row" onclick="verDetalle('${eq.id}','${eq.nº_serie}','${eq.estado}','${(eq.nombre_tipo||'').replace(/'/g,'')}')">
-              <div><strong>${eq.nombre_tipo || 'Equipo'}</strong>${marcaInfo}<br><span style="color:var(--muted);font-size:12px">${eq.nº_serie}${idInfo}</span></div>
+    return `<div class="result-row" onclick="verDetalle('${eq.id}','${eq.nº_serie}','${eq.estado}','${nombre.replace(/'/g,'')}')">
+              <div><strong>${nombre}</strong>${marcaInfo}${modeloInfo}<br><span style="color:var(--muted);font-size:12px">${eq.nº_serie}${idInfo}</span></div>
               <span class="badge ${badge}">${texto}</span>
             </div>`;
   }).join('') + '</div>';
