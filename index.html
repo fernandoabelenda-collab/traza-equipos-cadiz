@@ -238,6 +238,7 @@
         <div class="subtab" data-sub="reponerfungible" onclick="cambiarSubtab('reponerfungible')">Reponer Fungible</div>
         <div class="subtab" data-sub="editarfungible" onclick="cambiarSubtab('editarfungible')">Editar Fungible</div>
         <div class="subtab" data-sub="historico-fungibles" onclick="cambiarSubtab('historico-fungibles')">Histórico Fung.</div>
+        <div class="subtab" data-sub="usuarios" onclick="cambiarSubtab('usuarios')">Usuarios</div>
       </div>
 
       <div class="subview active" id="sub-solicitudes"><div class="empty">Cargando...</div></div>
@@ -245,6 +246,30 @@
       <div class="subview" id="sub-calibraciones"><div class="empty">Cargando...</div></div>
       <div class="subview" id="sub-fungibles"><div class="empty">Cargando...</div></div>
       <div class="subview" id="sub-historico-fungibles"><div class="empty">Cargando...</div></div>
+
+      <!-- GESTIÓN DE USUARIOS -->
+      <div class="subview" id="sub-usuarios">
+        <div class="card">
+          <div class="card-title">Añadir nuevo usuario</div>
+          <div class="field-grid">
+            <div class="field"><label>Nombre completo *</label><input type="text" id="usr-nombre" class="search-box"></div>
+            <div class="field"><label>Email *</label><input type="email" id="usr-email" class="search-box"></div>
+          </div>
+          <div class="field-grid">
+            <div class="field">
+              <label>Rol *</label>
+              <select id="usr-rol" class="search-box">
+                <option value="tecnico">Técnico</option>
+                <option value="gestor">Gestor</option>
+                <option value="delegado">Delegado</option>
+              </select>
+            </div>
+            <div class="field"><label>Teléfono</label><input type="text" id="usr-telefono" class="search-box"></div>
+          </div>
+          <button class="btn primary" onclick="altaUsuario()">Dar de alta</button>
+        </div>
+        <div id="usuarios-lista"><div class="empty">Cargando...</div></div>
+      </div>
 
       <!-- ALTA DE EQUIPO -->
       <div class="subview" id="sub-altaequipo">
@@ -435,6 +460,7 @@ function cambiarSubtab(sub){
   if(sub === 'calibraciones') cargarCalibraciones();
   if(sub === 'fungibles') cargarFungibles();
   if(sub === 'historico-fungibles') cargarHistoricoFungibles();
+  if(sub === 'usuarios') cargarUsuarios();
   if(sub === 'solicitudes') cargarSolicitudesVivo();
   if(sub === 'altaequipo') cargarSelectorTipos();
   if(sub === 'altafungible') cargarSelectorTiposFungible();
@@ -541,7 +567,7 @@ async function abrirEdicion(equipoId){
     .eq('id', equipoId).single();
   if(!e) return;
 
-  const { data: tecnicos } = await db.from('usuarios').select('id, nombre_completo').order('nombre_completo');
+  const { data: tecnicos } = await db.from('usuarios').select('id, nombre_completo').neq('activo', false).order('nombre_completo');
   const opcionesTecnicos = (tecnicos||[]).map(t =>
     `<option value="${t.id}" ${e.tecnico_actual_id === t.id ? 'selected' : ''}>${t.nombre_completo}</option>`
   ).join('');
@@ -1015,15 +1041,23 @@ async function cargarInventario(){
   if(idsAsignados.length){
     const { data: movs, error: errMovs } = await db
       .from('movimientos')
-      .select('equipo_id, accion, timestamp, solicitudes(usuarios!tecnico_poseedor_id(nombre_completo))')
+      .select('equipo_id, accion, timestamp, usuario_id, detalle')
       .in('equipo_id', idsAsignados)
-      .in('accion', ['recibido','recogida_almacen','asignado_gestor','entrega_directa_gestor'])
+      .in('accion', ['entregado','recogida_almacen','asignado_gestor','entrega_directa_gestor'])
       .order('timestamp', { ascending: false });
     if(errMovs) console.error('Error cargando origen de equipos:', errMovs.message);
+    const movUserIds = [...new Set((movs||[]).map(m => m.usuario_id).filter(Boolean))];
+    let movUserMap = {};
+    if(movUserIds.length){
+      const { data: mus } = await db.from('usuarios').select('id, nombre_completo').in('id', movUserIds);
+      (mus||[]).forEach(u => { movUserMap[u.id] = u.nombre_completo; });
+    }
     (movs||[]).forEach(m => {
       if(inventarioOrigenMap[m.equipo_id]) return;
+      const esAlmacen = ['recogida_almacen','asignado_gestor','entrega_directa_gestor'].includes(m.accion)
+        || (m.detalle && m.detalle.toLowerCase().includes('almacén'));
       inventarioOrigenMap[m.equipo_id] = {
-        nombre: (m.accion === 'recogida_almacen' || m.accion === 'asignado_gestor' || m.accion === 'entrega_directa_gestor') ? 'Almacén' : (m.solicitudes?.usuarios?.nombre_completo || 'Otro técnico'),
+        nombre: esAlmacen ? 'Almacén' : (movUserMap[m.usuario_id] || 'Otro técnico'),
         fecha: m.timestamp
       };
     });
@@ -1129,7 +1163,7 @@ async function editarDesdeInventario(equipoId){
     .eq('id', equipoId).single();
   if(!e) return;
 
-  const { data: tecnicos } = await db.from('usuarios').select('id, nombre_completo').order('nombre_completo');
+  const { data: tecnicos } = await db.from('usuarios').select('id, nombre_completo').neq('activo', false).order('nombre_completo');
   const opcionesTecnicos = (tecnicos||[]).map(t =>
     `<option value="${t.id}" ${e.tecnico_actual_id === t.id ? 'selected' : ''}>${t.nombre_completo}</option>`
   ).join('');
@@ -1394,6 +1428,96 @@ async function borrarHistoricoFungibles(){
   cargarHistoricoFungibles();
 }
 
+// ------------------------------------------------------------
+// GESTIÓN DE USUARIOS
+// ------------------------------------------------------------
+async function cargarUsuarios(){
+  const { data, error } = await db.from('usuarios')
+    .select('id, nombre_completo, email, rol, telefono, activo, codigo_invitacion, telegram_chat_id')
+    .order('nombre_completo');
+  if(error){ document.getElementById('usuarios-lista').innerHTML = `<div class="empty">Error: ${error.message}</div>`; return; }
+
+  const filas = (data||[]).map(u => {
+    const estadoBadge = u.activo !== false
+      ? '<span class="badge ok">Activo</span>'
+      : '<span class="badge bad">Inactivo</span>';
+    const telegramBadge = u.telegram_chat_id
+      ? '<span class="badge info" style="font-size:10px;">TG ✓</span>'
+      : '<span class="badge warn" style="font-size:10px;">TG ✗</span>';
+    const enlaceTG = u.codigo_invitacion
+      ? `https://t.me/Traza_equipos_Cadiz_bot?start=${u.codigo_invitacion}`
+      : '';
+    const botonActivar = u.activo !== false
+      ? `<button class="btn danger" style="font-size:11px;padding:4px 8px;min-height:28px;width:auto;display:inline-block;" onclick="toggleUsuario('${u.id}',false)">Desactivar</button>`
+      : `<button class="btn primary" style="font-size:11px;padding:4px 8px;min-height:28px;width:auto;display:inline-block;" onclick="toggleUsuario('${u.id}',true)">Reactivar</button>`;
+    return `<tr style="${u.activo === false ? 'opacity:0.5;' : ''}">
+      <td><strong>${u.nombre_completo}</strong></td>
+      <td style="font-size:11px;">${u.email||'—'}</td>
+      <td>
+        <select class="search-box" style="font-size:11px;padding:4px;margin:0;min-height:28px;" onchange="cambiarRol('${u.id}',this.value)">
+          <option value="tecnico" ${u.rol==='tecnico'?'selected':''}>Técnico</option>
+          <option value="gestor" ${u.rol==='gestor'?'selected':''}>Gestor</option>
+          <option value="delegado" ${u.rol==='delegado'?'selected':''}>Delegado</option>
+        </select>
+      </td>
+      <td>${estadoBadge} ${telegramBadge}</td>
+      <td style="font-size:10px;">
+        ${enlaceTG ? `<a href="${enlaceTG}" target="_blank" title="Enlace Telegram" style="color:var(--accent);word-break:break-all;">${u.codigo_invitacion}</a>` : '—'}
+      </td>
+      <td>${botonActivar}</td>
+    </tr>`;
+  }).join('');
+
+  document.getElementById('usuarios-lista').innerHTML = `
+    <div style="overflow-x:auto;margin-top:10px;">
+      <table class="inv">
+        <tr><th>Nombre</th><th>Email</th><th>Rol</th><th>Estado</th><th>Código TG</th><th>Acción</th></tr>
+        ${filas}
+      </table>
+    </div>
+    <div style="color:var(--muted);font-size:11px;margin-top:6px;">Total: ${(data||[]).length} usuarios</div>`;
+}
+
+async function altaUsuario(){
+  const nombre = document.getElementById('usr-nombre').value.trim();
+  const email = document.getElementById('usr-email').value.trim();
+  const rol = document.getElementById('usr-rol').value;
+  const telefono = document.getElementById('usr-telefono').value.trim() || null;
+
+  if(!nombre || !email){ mostrarToast('Nombre y email son obligatorios.'); return; }
+
+  const codigo = crypto.randomUUID().slice(0,8);
+
+  const { error } = await db.from('usuarios').insert({
+    nombre_completo: nombre, email, rol, telefono,
+    codigo_invitacion: codigo, activo: true
+  });
+  if(error){ mostrarToast('Error al crear usuario: ' + error.message); return; }
+
+  const enlaceTG = `https://t.me/Traza_equipos_Cadiz_bot?start=${codigo}`;
+  mostrarToast('Usuario creado.');
+  alert(`Usuario creado correctamente.\n\nDatos para enviarle:\n• URL: la misma de la app\n• Contraseña: créala en Supabase → Authentication → Add user\n• Telegram: ${enlaceTG}`);
+
+  ['usr-nombre','usr-email','usr-telefono'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('usr-rol').value = 'tecnico';
+  cargarUsuarios();
+}
+
+async function cambiarRol(userId, nuevoRol){
+  const { error } = await db.from('usuarios').update({ rol: nuevoRol }).eq('id', userId);
+  if(error){ mostrarToast('Error: ' + error.message); return; }
+  mostrarToast('Rol actualizado.');
+}
+
+async function toggleUsuario(userId, activar){
+  const msg = activar ? '¿Reactivar este usuario?' : '¿Desactivar este usuario? No podrá operar pero su historial se conserva.';
+  if(!confirm(msg)) return;
+  const { error } = await db.from('usuarios').update({ activo: activar }).eq('id', userId);
+  if(error){ mostrarToast('Error: ' + error.message); return; }
+  mostrarToast(activar ? 'Usuario reactivado.' : 'Usuario desactivado.');
+  cargarUsuarios();
+}
+
 function mostrarToast(msg){
   const t = document.getElementById('toast');
   t.textContent = msg;
@@ -1464,9 +1588,9 @@ async function cargarMiLinea(){
     const misEquiposIds = misEquipos.map(e => e.id);
     if(misEquiposIds.length){
       const { data: movs } = await db.from('movimientos')
-        .select('equipo_id, accion, timestamp, usuario_id')
+        .select('equipo_id, accion, timestamp, usuario_id, detalle')
         .in('equipo_id', misEquiposIds)
-        .in('accion', ['recibido','recogida_almacen','asignado_gestor','entrega_directa_gestor'])
+        .in('accion', ['entregado','recogida_almacen','asignado_gestor','entrega_directa_gestor'])
         .order('timestamp', { ascending: false });
       const movUserIds = [...new Set((movs||[]).map(m => m.usuario_id).filter(Boolean))];
       let movUserMap = {};
@@ -1476,7 +1600,8 @@ async function cargarMiLinea(){
       }
       (movs||[]).forEach(m => {
         if(origenMiLinea[m.equipo_id]) return;
-        const esAlmacen = ['recogida_almacen','asignado_gestor','entrega_directa_gestor'].includes(m.accion);
+        const esAlmacen = ['recogida_almacen','asignado_gestor','entrega_directa_gestor'].includes(m.accion)
+          || (m.detalle && m.detalle.toLowerCase().includes('almacén'));
         origenMiLinea[m.equipo_id] = {
           nombre: esAlmacen ? 'Almacén' : (movUserMap[m.usuario_id] || 'Otro técnico'),
           fecha: m.timestamp
