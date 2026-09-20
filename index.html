@@ -1486,28 +1486,57 @@ async function altaUsuario(){
 
   if(!nombre || !email){ mostrarToast('Nombre y email son obligatorios.'); return; }
 
-  const codigo = crypto.randomUUID().slice(0,8);
+  const codigo = (typeof crypto.randomUUID === 'function')
+    ? crypto.randomUUID().slice(0,8)
+    : Math.random().toString(36).slice(2,10);
 
-  const nuevoId = (typeof crypto.randomUUID === 'function')
-    ? crypto.randomUUID()
-    : 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
-        const r = Math.random()*16|0; return (c==='x' ? r : (r&0x3|0x8)).toString(16);
-      });
+  // Generar contraseña temporal: Traza + 4 letras del segundo apellido + 2026!
+  const partes = nombre.trim().split(/\s+/);
+  const apellido2 = partes.length >= 3 ? partes[partes.length-1].slice(0,4) : partes[partes.length-1].slice(0,4);
+  const tempPassword = 'Traza' + apellido2.charAt(0).toUpperCase() + apellido2.slice(1).toLowerCase() + '2026!';
 
+  // Guardar sesión actual
+  const { data: sesionActual } = await db.auth.getSession();
+
+  // Crear cuenta en Supabase Auth
+  const { data: authData, error: authError } = await db.auth.signUp({
+    email: email,
+    password: tempPassword
+  });
+
+  if(authError){
+    // Restaurar sesión por si acaso
+    if(sesionActual?.session) await db.auth.setSession(sesionActual.session);
+    mostrarToast('Error al crear cuenta: ' + authError.message);
+    return;
+  }
+
+  const nuevoId = authData.user?.id;
+  if(!nuevoId){
+    if(sesionActual?.session) await db.auth.setSession(sesionActual.session);
+    mostrarToast('Error: no se obtuvo el ID del usuario creado.');
+    return;
+  }
+
+  // Restaurar sesión de Fernando (signUp puede cambiarla)
+  if(sesionActual?.session) await db.auth.setSession(sesionActual.session);
+
+  // Obtener delegación
   const { data: deleg } = await db.from('delegaciones').select('id').limit(1).single();
   if(!deleg){ mostrarToast('Error: no se encontró la delegación.'); return; }
 
+  // Insertar en tabla usuarios con el UUID real de Auth
   const { error } = await db.from('usuarios').insert({
     id: nuevoId,
     nombre_completo: nombre, email, rol, telefono,
     codigo_invitacion: codigo, activo: true,
     delegacion_id: deleg.id
   });
-  if(error){ mostrarToast('Error al crear usuario: ' + error.message); return; }
+  if(error){ mostrarToast('Error al crear perfil: ' + error.message); return; }
 
   const enlaceTG = `https://t.me/Traza_equipos_Cadiz_bot?start=${codigo}`;
-  mostrarToast('Usuario creado.');
-  alert(`Usuario creado en el sistema.\n\nPasos pendientes:\n\n1. Ve a Supabase → Authentication → Add user\n   Email: ${email}\n   Contraseña: la que elijas\n   Marca "Auto Confirm User"\n\n2. IMPORTANTE: copia el UUID del usuario creado en Auth y actualiza el registro en la tabla usuarios (para que el login funcione)\n\n3. Envíale al técnico:\n   • URL de la app\n   • Email: ${email}\n   • Contraseña\n   • Telegram: https://t.me/Traza_equipos_Cadiz_bot?start=${codigo}`);
+  mostrarToast('Usuario creado correctamente.');
+  alert(`Usuario creado.\n\nDatos para enviarle:\n• URL: la de la app\n• Email: ${email}\n• Contraseña: ${tempPassword}\n• Telegram: ${enlaceTG}`);
 
   ['usr-nombre','usr-email','usr-telefono'].forEach(id => document.getElementById(id).value = '');
   document.getElementById('usr-rol').value = 'tecnico';
