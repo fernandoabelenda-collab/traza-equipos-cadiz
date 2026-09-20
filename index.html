@@ -1846,7 +1846,7 @@ function buscarPorCategoria(){
     const marcaInfo = eq.marca ? ' · ' + eq.marca : '';
     const modeloInfo = eq.modelo ? ' · ' + eq.modelo : '';
     const idInfo = eq.id_oca ? ` · ID: ${eq.id_oca}` : '';
-    return `<div class="result-row" onclick="verDetalle('${eq.id}','${eq.nº_serie}','${eq.estado}','${nombre.replace(/'/g,'')}')">
+    return `<div class="result-row" onclick="verDetalle('${eq.id}','${(eq.nº_serie||'').replace(/'/g,'')}','${eq.estado}','${nombre.replace(/'/g,'')}')">
               <div><strong>${nombre}</strong>${marcaInfo}${modeloInfo}<br><span style="color:var(--muted);font-size:12px">${eq.nº_serie}${idInfo}</span></div>
               <span class="badge ${badge}">${texto}</span>
             </div>`;
@@ -1858,53 +1858,87 @@ async function verDetalle(equipoId, nSerie, estado, nombreTipo){
   const titulo = nombreTipo ? nombreTipo + ' — ' + nSerie : nSerie;
 
   if(estado === 'solicitud_pendiente' || estado === 'solicitud_bloqueada'){
-    const { data } = await db.rpc('consultar_poseedor', { p_equipo_id: equipoId });
-    const info = data && data[0];
+    // Ya hay solicitud en curso
+    const { data: eq } = await db.from('equipos').select('usuarios(nombre_completo)').eq('id', equipoId).single();
     cont.innerHTML = `
       <div class="card">
         <div class="card-title">${titulo}</div>
-        <div class="poseedor-info">
-          Lo tiene: <strong>${info?.nombre_tecnico || 'Desconocido'}</strong>
-        </div>
-        <div class="card-sub" style="margin-top:6px;">Ya hay una solicitud en curso para este equipo. Espera a que se resuelva antes de solicitarlo de nuevo.</div>
+        <div class="poseedor-info">Lo tiene: <strong>${eq?.usuarios?.nombre_completo || 'Desconocido'}</strong></div>
+        <div class="card-sub" style="margin-top:6px;">Ya hay una solicitud en curso. Espera a que se resuelva.</div>
       </div>`;
   } else if(estado !== 'disponible'){
-    const { data } = await db.rpc('consultar_poseedor', { p_equipo_id: equipoId });
-    const info = data && data[0];
+    // En uso por otro técnico → solicitar
+    const { data: eq } = await db.from('equipos').select('usuarios(nombre_completo, telefono)').eq('id', equipoId).single();
     cont.innerHTML = `
       <div class="card">
         <div class="card-title">${titulo}</div>
         <div class="poseedor-info">
-          Lo tiene: <strong>${info?.nombre_tecnico || 'Desconocido'}</strong><br>
-          ${info?.ubicacion_texto || ''} ${info?.telefono ? '· Tel: ' + info.telefono : ''}
+          Lo tiene: <strong>${eq?.usuarios?.nombre_completo || 'Desconocido'}</strong>
+          ${eq?.usuarios?.telefono ? ' · Tel: ' + eq.usuarios.telefono : ''}
         </div>
         <button class="btn primary" onclick="solicitarEquipo('${equipoId}')">Solicitar equipo</button>
       </div>`;
   } else {
+    // Disponible en almacén → solicitar al gestor
     cont.innerHTML = `
       <div class="card">
         <div class="card-title">${titulo} <span class="badge ok">Disponible en almacén</span></div>
-        <button class="btn primary" onclick="recogerAlmacen('${equipoId}')">Recibido de almacén</button>
+        <button class="btn primary" onclick="solicitarAlmacen('${equipoId}')">Solicitar al almacén</button>
       </div>`;
   }
 }
 
 async function solicitarEquipo(equipoId){
   const { error } = await db.rpc('crear_solicitud', { p_equipo_id: equipoId });
-  if(error){ mostrarToast('No se pudo crear la solicitud.'); return; }
-  mostrarToast('Solicitud enviada.');
+  if(error){ mostrarToast('No se pudo crear la solicitud: ' + error.message); return; }
+  mostrarToast('Solicitud enviada al técnico.');
   document.getElementById('detalle-equipo').innerHTML = '';
-  if(document.getElementById('buscar-input')) document.getElementById('buscar-input').value = '';
   document.getElementById('buscar-resultados').innerHTML = '';
   cambiarTab('linea');
 }
 
-async function recogerAlmacen(equipoId){
-  const { error } = await db.rpc('recoger_de_almacen', { p_equipo_id: equipoId });
-  if(error){ mostrarToast('No se pudo recoger el equipo.'); return; }
-  mostrarToast('Equipo recogido de almacén.');
+async function solicitarAlmacen(equipoId){
+  // Crear solicitud sin poseedor (almacén) → aparece en kanban del gestor
+  const { error } = await db.from('solicitudes').insert({
+    equipo_id: equipoId,
+    tecnico_solicitante_id: usuarioActual.id,
+    tecnico_poseedor_id: null,
+    origen: 'solicitud_tecnico',
+    estado: 'pendiente'
+  });
+  if(error){ mostrarToast('No se pudo crear la solicitud: ' + error.message); return; }
+
+  // Cambiar estado del equipo
+  await db.from('equipos').update({ estado: 'solicitud_pendiente' }).eq('id', equipoId);
+
+  // Registrar movimiento
+  await db.from('movimientos').insert({
+    equipo_id: equipoId, usuario_id: usuarioActual.id,
+    accion: 'solicitado', detalle: 'Solicitud de equipo desde almacén'
+  });
+
+  // Notificar a gestores por Telegram
+  try {
+    const { data: gestores } = await db.from('usuarios')
+      .select('telegram_chat_id')
+      .in('rol', ['gestor','delegado'])
+      .not('telegram_chat_id', 'is', null);
+    const { data: eq } = await db.from('equipos').select('nº_serie').eq('id', equipoId).single();
+    const chatIds = (gestores||[]).map(g => g.telegram_chat_id).filter(Boolean);
+    if(chatIds.length){
+      await fetch('https://pjsdgkxwlyirpkkwjuyk.supabase.co/functions/v1/send-alert', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({
+          destinatarios: chatIds,
+          mensaje: `${usuarioActual.nombre_completo} solicita el equipo ${eq?.nº_serie||''} del almacén. Revisa el panel de Solicitudes.`
+        })
+      });
+    }
+  } catch(e){ console.error('Error notificando gestores:', e); }
+
+  mostrarToast('Solicitud enviada al gestor. Recibirás el equipo cuando lo entreguen.');
   document.getElementById('detalle-equipo').innerHTML = '';
-  if(document.getElementById('buscar-input')) document.getElementById('buscar-input').value = '';
   document.getElementById('buscar-resultados').innerHTML = '';
   cambiarTab('linea');
 }
