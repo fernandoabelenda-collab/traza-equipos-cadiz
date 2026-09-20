@@ -1410,9 +1410,17 @@ async function cargarMiLinea(){
     let misSolicitudes = [];
     try {
       const r = await db.from('solicitudes')
-        .select('id, equipo_id, equipos(nº_serie, id_oca, tipos_equipo(nombre)), estado, fecha_solicitud, poseedor:usuarios!tecnico_poseedor_id(nombre_completo)')
+        .select('id, equipo_id, equipos(nº_serie, id_oca, tipos_equipo(nombre)), estado, fecha_solicitud, tecnico_poseedor_id')
         .eq('tecnico_solicitante_id', usuarioActual.id).in('estado', ['pendiente','entregado']);
-      misSolicitudes = (r.data||[]).filter(s => s.equipos);
+      const solicitudesRaw = (r.data||[]).filter(s => s.equipos);
+      // Cargar nombres de poseedores
+      const poseedorIds = [...new Set(solicitudesRaw.map(s => s.tecnico_poseedor_id).filter(Boolean))];
+      let poseedorMap = {};
+      if(poseedorIds.length){
+        const { data: poseedores } = await db.from('usuarios').select('id, nombre_completo').in('id', poseedorIds);
+        (poseedores||[]).forEach(p => { poseedorMap[p.id] = p.nombre_completo; });
+      }
+      misSolicitudes = solicitudesRaw.map(s => ({...s, poseedor_nombre: poseedorMap[s.tecnico_poseedor_id] || 'Almacén'}));
     } catch(e){ console.error('Error misSolicitudes:', e); }
 
     // 3. Mis equipos actuales
@@ -1430,14 +1438,21 @@ async function cargarMiLinea(){
     if(misEquiposIds.length){
       try {
         const { data: movs } = await db.from('movimientos')
-          .select('equipo_id, accion, timestamp, solicitudes(usuarios!tecnico_poseedor_id(nombre_completo))')
+          .select('equipo_id, accion, timestamp, usuario_id')
           .in('equipo_id', misEquiposIds)
           .in('accion', ['recibido','recogida_almacen','asignado_gestor','entrega_directa_gestor'])
           .order('timestamp', { ascending: false });
+        // Cargar nombres de quienes hicieron la entrega
+        const userIds = [...new Set((movs||[]).map(m => m.usuario_id).filter(Boolean))];
+        let userMap = {};
+        if(userIds.length){
+          const { data: users } = await db.from('usuarios').select('id, nombre_completo').in('id', userIds);
+          (users||[]).forEach(u => { userMap[u.id] = u.nombre_completo; });
+        }
         (movs||[]).forEach(m => {
           if(origenMiLinea[m.equipo_id]) return;
           origenMiLinea[m.equipo_id] = {
-            nombre: (m.accion === 'recogida_almacen' || m.accion === 'asignado_gestor' || m.accion === 'entrega_directa_gestor') ? 'Almacén' : (m.solicitudes?.usuarios?.nombre_completo || 'Otro técnico'),
+            nombre: (m.accion === 'recogida_almacen' || m.accion === 'asignado_gestor' || m.accion === 'entrega_directa_gestor') ? 'Almacén' : (userMap[m.usuario_id] || 'Otro técnico'),
             fecha: m.timestamp
           };
         });
@@ -1465,7 +1480,7 @@ async function cargarMiLinea(){
       html += `
         <div class="card">
           <div class="card-title">${[s.equipos?.tipos_equipo?.nombre, s.equipos?.nº_serie, s.equipos?.id_oca ? '(ID: '+s.equipos.id_oca+')' : ''].filter(Boolean).join(' — ')} <span class="badge warn">Esperando entrega</span></div>
-          <div class="card-sub">Pendiente de: <strong>${s.poseedor?.nombre_completo || '—'}</strong>${fecha ? ` · solicitado ${fecha}` : ''}</div>
+          <div class="card-sub">Pendiente de: <strong>${s.poseedor_nombre || '—'}</strong>${fecha ? ` · solicitado ${fecha}` : ''}</div>
         </div>`;
     } else if(s.estado === 'entregado'){
       html += `
