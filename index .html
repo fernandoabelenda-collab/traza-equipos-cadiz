@@ -1,0 +1,1968 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>TRAZA·Equipos</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<style>
+  :root{
+    --navy:#1A2D42; --blue:#007B7F; --blue-light:#009B9E;
+    --ok:#1E8E5A; --warn:#B97509; --bad:#C0392B; --accent:#009B9E;
+    --bg:#F5F7F8; --card:#FFFFFF; --text:#1A1A1A; --muted:#6B7280;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{
+    font-family:-apple-system,Segoe UI,Roboto,sans-serif;
+    background:var(--bg); color:var(--text); font-size:16px;
+    padding-bottom:70px;
+  }
+  header{
+    background:var(--navy); color:#fff; padding:14px 20px;
+    display:flex; justify-content:space-between; align-items:center;
+    position:sticky; top:0; z-index:10;
+  }
+  header .brand{display:flex; align-items:center; gap:10px; font-weight:700; font-size:18px; letter-spacing:.5px;}
+  header .brand svg{flex-shrink:0;}
+  header .user{font-size:13px; opacity:.85;}
+  #login-screen{
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    min-height:100vh; padding:24px; gap:14px; background:var(--bg);
+  }
+  #login-screen .login-logo{display:flex; flex-direction:column; align-items:center; gap:8px; margin-bottom:16px;}
+  #login-screen h1{color:var(--navy); font-size:22px; margin-bottom:0;}
+  #login-screen .subtitle{color:var(--muted); font-size:13px;}
+  #login-screen input{
+    width:100%; max-width:360px; padding:14px; border:1px solid #D1D5DB;
+    border-radius:10px; font-size:16px;
+  }
+  #login-screen button, .btn-primary{
+    width:100%; max-width:360px; padding:14px; border:none; border-radius:10px;
+    background:var(--accent); color:#fff; font-size:16px; font-weight:600;
+    min-height:48px; cursor:pointer;
+  }
+  #login-error{color:var(--bad); font-size:14px; min-height:18px;}
+
+  main{padding:14px 20px; max-width:800px; margin:0 auto;}
+  .tabs{
+    display:flex; background:var(--card); border-radius:10px; overflow:hidden;
+    box-shadow:0 1px 3px rgba(0,0,0,.08); margin-bottom:10px;
+  }
+  .tab{
+    flex:1; text-align:center; padding:9px 10px; font-weight:600; font-size:13px;
+    color:var(--muted); cursor:pointer; border-bottom:3px solid transparent;
+  }
+  .tab.active{color:var(--blue); border-bottom-color:var(--accent); background:#F0F7F7;}
+  .view{display:none;}
+  .view.active{display:block;}
+
+  .card{
+    background:var(--card); border-radius:12px; padding:12px 14px; margin-bottom:8px;
+    box-shadow:0 1px 3px rgba(0,0,0,.08);
+  }
+  .card-title{font-weight:700; font-size:15px; margin-bottom:3px;}
+  .card-sub{color:var(--muted); font-size:12px; margin-bottom:6px;}
+  .badge{
+    display:inline-block; padding:2px 9px; border-radius:20px; font-size:11px;
+    font-weight:700; color:#fff;
+  }
+  .badge.ok{background:var(--ok);} .badge.warn{background:var(--warn);}
+  .badge.bad{background:var(--bad);} .badge.info{background:var(--blue-light);}
+  .badge.obra{background:#B0C4D8; color:#1A3550;}
+
+  .btn{
+    display:block; width:100%; padding:10px; border:none; border-radius:8px;
+    font-size:13px; font-weight:600; min-height:38px; cursor:pointer; margin-top:6px;
+  }
+  .btn.primary{background:var(--accent); color:#fff;}
+  .btn.danger{background:var(--bad); color:#fff;}
+  .btn.secondary{background:#EEF2F6; color:var(--blue);}
+  .btn-row{display:flex; gap:8px;}
+  .btn-row .btn{flex:1; width:auto;}
+
+  .search-box{
+    width:100%; padding:10px 12px; border:1px solid #D1D5DB; border-radius:8px;
+    font-size:15px; margin-bottom:8px;
+  }
+  .result-row{
+    display:flex; justify-content:space-between; align-items:center;
+    padding:9px 4px; border-bottom:1px solid #EEF0F2; cursor:pointer;
+  }
+  .result-row:last-child{border-bottom:none;}
+  .empty{color:var(--muted); text-align:center; padding:24px 10px; font-size:13px;}
+
+  .poseedor-info{background:#F0F7F7; border-radius:10px; padding:12px; margin:8px 0;}
+
+  .field{margin-bottom:9px;}
+  .field label{display:block; font-size:11px; font-weight:700; color:var(--navy); text-transform:uppercase; letter-spacing:.3px; margin-bottom:3px;}
+  .field .search-box{margin-bottom:0;}
+  .form-section{border-top:1px solid #EEF0F2; margin-top:10px; padding-top:10px;}
+  .form-section-title{font-size:10px; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:.5px; margin-bottom:7px;}
+  @media (min-width:600px){
+    .field-grid{display:grid; grid-template-columns:1fr 1fr; gap:0 14px;}
+  }
+
+  .fungible-btn{
+    display:flex; align-items:center; justify-content:center; gap:8px;
+    background:#EEF2F6; color:var(--blue); font-weight:600;
+  }
+
+  /* ---- Panel Gestor ---- */
+  .kpi-strip{display:flex; gap:6px; overflow-x:auto; margin-bottom:10px;}
+  .kpi{
+    background:var(--card); border-radius:10px; padding:8px 12px; min-width:88px;
+    box-shadow:0 1px 3px rgba(0,0,0,.08); text-align:center; flex-shrink:0;
+  }
+  .kpi .num{font-size:18px; font-weight:700; color:var(--navy); line-height:1.1;}
+  .kpi .lbl{font-size:10px; color:var(--muted); margin-top:1px;}
+  .subtabs{display:flex; gap:5px; margin-bottom:10px; flex-wrap:wrap;}
+  .subtab{
+    padding:6px 11px; border-radius:16px; font-size:12px; font-weight:600;
+    background:#EEF2F6; color:var(--blue); cursor:pointer;
+  }
+  .subtab.active{background:var(--navy); color:#fff;}
+  .subview{display:none;} .subview.active{display:block;}
+  .modal-overlay{position:fixed; inset:0; background:rgba(0,0,0,.45); display:flex; align-items:center; justify-content:center; z-index:200; padding:16px;}
+  .modal-box{background:var(--card); border-radius:14px; padding:18px; max-width:420px; width:100%; max-height:80vh; overflow-y:auto;}
+  .modal-box h3{margin-bottom:12px; font-size:16px;}
+  .fungible-opcion{padding:9px 11px; border-radius:8px; background:#EEF0F2; margin-bottom:6px; cursor:pointer; font-size:13px;}
+  .fungible-opcion:hover{background:#E2E5E9;}
+  .fungible-opcion.selected{background:var(--accent); color:#fff;}
+  .kanban{display:flex; gap:8px; overflow-x:auto;}
+  .kanban-col{background:#EEF0F2; border-radius:10px; padding:8px; min-width:200px; flex-shrink:0;}
+  .kanban-col h4{font-size:12px; color:var(--muted); margin-bottom:6px; text-transform:uppercase;}
+  .kanban-card{background:var(--card); border-radius:8px; padding:9px; margin-bottom:6px; font-size:12px; box-shadow:0 1px 2px rgba(0,0,0,.06);}
+  table.inv{width:100%; border-collapse:collapse; font-size:12px; background:var(--card); border-radius:8px; overflow:hidden;}
+  table.inv th{background:var(--navy); color:#fff; padding:6px 8px; text-align:left; font-size:11px; text-transform:uppercase; letter-spacing:.3px;}
+  table.inv td{padding:6px 8px; border-bottom:1px solid #EEF0F2;}
+  table.inv tr:hover td{background:#F7FAFA;}
+  .gauge-wrap{background:#EEE; border-radius:6px; height:8px; overflow:hidden; margin-top:5px;}
+  .gauge-fill{height:100%; background:var(--ok);}
+  .gauge-fill.low{background:var(--bad);}
+
+  /* ---- Desktop: algo más de aire, sin perder densidad ---- */
+  @media (min-width: 768px){
+    main{padding:18px 28px; max-width:1000px;}
+    .card{padding:13px 16px;}
+    .tabs{margin-bottom:14px;}
+    .tab{padding:10px 16px; font-size:14px;}
+    .search-box{padding:11px 13px; font-size:14px;}
+    .kpi-strip{gap:10px;}
+    .kpi{min-width:110px; padding:12px 16px;}
+    .kpi .num{font-size:22px;}
+    .kpi .lbl{font-size:11px;}
+    .kanban{gap:12px;}
+    .kanban-col{min-width:250px; padding:12px;}
+    table.inv td, table.inv th{padding:8px 12px;}
+    #login-screen input, #login-screen button{max-width:400px; padding:16px; font-size:17px;}
+  }
+  @media (min-width: 1200px){
+    main{max-width:1100px;}
+  }
+
+  .toast{
+    position:fixed; bottom:20px; left:50%; transform:translateX(-50%);
+    background:var(--navy); color:#fff; padding:12px 20px; border-radius:10px;
+    font-size:14px; opacity:0; transition:opacity .3s; z-index:100; max-width:90%; text-align:center;
+  }
+  .toast.show{opacity:1;}
+</style>
+</head>
+<body>
+
+<!-- ================= LOGIN ================= -->
+<div id="login-screen">
+  <div class="login-logo">
+    <svg width="60" height="40" viewBox="0 0 60 40" xmlns="http://www.w3.org/2000/svg">
+      <polygon points="0,20 12,6 12,14 24,0 24,8 12,22 12,14 0,28" fill="#009B9E"/>
+      <polygon points="0,28 12,14 12,22 24,8 24,16 12,30 12,22 0,36" fill="#007B7F"/>
+    </svg>
+    <h1>TRAZA·Equipos</h1>
+    <div class="subtitle">OCA Global · Delegación Cádiz</div>
+  </div>
+  <input type="email" id="login-email" placeholder="Correo electrónico" autocomplete="username">
+  <input type="password" id="login-password" placeholder="Contraseña" autocomplete="current-password">
+  <button onclick="hacerLogin()">Entrar</button>
+  <div id="login-error"></div>
+</div>
+
+<!-- ================= APP ================= -->
+<div id="app" style="display:none;">
+  <header>
+    <div class="brand">
+      <svg width="32" height="22" viewBox="0 0 60 40" xmlns="http://www.w3.org/2000/svg">
+        <polygon points="0,20 12,6 12,14 24,0 24,8 12,22 12,14 0,28" fill="#009B9E"/>
+        <polygon points="0,28 12,14 12,22 24,8 24,16 12,30 12,22 0,36" fill="#007B7F"/>
+      </svg>
+      TRAZA·Equipos
+    </div>
+    <div style="display:flex; align-items:center; gap:12px;">
+      <div class="user" id="user-name"></div>
+      <button onclick="cerrarSesion()" style="background:none; border:1px solid rgba(255,255,255,.3); color:#fff; border-radius:8px; padding:6px 12px; font-size:12px; cursor:pointer;">Salir</button>
+    </div>
+  </header>
+
+  <main>
+    <div class="tabs">
+      <div class="tab active" data-view="linea" onclick="cambiarTab('linea')">Mi línea</div>
+      <div class="tab" data-view="buscar" onclick="cambiarTab('buscar')">Buscar equipo</div>
+      <div class="tab" data-view="gestor" id="tab-gestor" style="display:none;" onclick="cambiarTab('gestor')">Panel Gestor</div>
+    </div>
+
+    <!-- VISTA: MI LÍNEA (unificada, Fase 7) -->
+    <div class="view active" id="view-linea">
+      <div id="linea-contenido"><div class="empty">Cargando...</div></div>
+      <button class="btn fungible-btn" onclick="abrirConsumoFungible()">+ Registrar consumo de fungible</button>
+    </div>
+
+    <!-- VISTA: BUSCAR EQUIPO -->
+    <div class="view" id="view-buscar">
+      <select class="search-box" id="buscar-categoria" onchange="buscarPorCategoria()">
+        <option value="">— Elige una categoría —</option>
+      </select>
+      <div id="buscar-resultados"></div>
+      <div id="detalle-equipo"></div>
+    </div>
+
+    <!-- VISTA: PANEL GESTOR/DELEGADO -->
+    <div class="view" id="view-gestor">
+      <div class="kpi-strip" id="kpi-strip"></div>
+      <div class="subtabs">
+        <div class="subtab active" data-sub="solicitudes" onclick="cambiarSubtab('solicitudes')">Solicitudes</div>
+        <div class="subtab" data-sub="inventario" onclick="cambiarSubtab('inventario')">Inventario</div>
+        <div class="subtab" data-sub="calibraciones" onclick="cambiarSubtab('calibraciones')">Calibraciones</div>
+        <div class="subtab" data-sub="fungibles" onclick="cambiarSubtab('fungibles')">Fungibles</div>
+        <div class="subtab" data-sub="altaequipo" onclick="cambiarSubtab('altaequipo')">+ Equipo</div>
+        <div class="subtab" data-sub="editarequipo" onclick="cambiarSubtab('editarequipo')">Editar Equipo</div>
+        <div class="subtab" data-sub="altafungible" onclick="cambiarSubtab('altafungible')">+ Fungible</div>
+        <div class="subtab" data-sub="reponerfungible" onclick="cambiarSubtab('reponerfungible')">Reponer Fungible</div>
+        <div class="subtab" data-sub="editarfungible" onclick="cambiarSubtab('editarfungible')">Editar Fungible</div>
+        <div class="subtab" data-sub="historico-fungibles" onclick="cambiarSubtab('historico-fungibles')">Histórico Fung.</div>
+        <div class="subtab" data-sub="usuarios" onclick="cambiarSubtab('usuarios')">Usuarios</div>
+      </div>
+
+      <div class="subview active" id="sub-solicitudes"><div class="empty">Cargando...</div></div>
+      <div class="subview" id="sub-inventario"><div class="empty">Cargando...</div></div>
+      <div class="subview" id="sub-calibraciones"><div class="empty">Cargando...</div></div>
+      <div class="subview" id="sub-fungibles"><div class="empty">Cargando...</div></div>
+      <div class="subview" id="sub-historico-fungibles"><div class="empty">Cargando...</div></div>
+
+      <!-- GESTIÓN DE USUARIOS -->
+      <div class="subview" id="sub-usuarios">
+        <div class="card">
+          <div class="card-title">Añadir nuevo usuario</div>
+          <div class="field-grid">
+            <div class="field"><label>Nombre completo *</label><input type="text" id="usr-nombre" class="search-box"></div>
+            <div class="field"><label>Email *</label><input type="email" id="usr-email" class="search-box"></div>
+          </div>
+          <div class="field-grid">
+            <div class="field">
+              <label>Rol *</label>
+              <select id="usr-rol" class="search-box">
+                <option value="tecnico">Técnico</option>
+                <option value="gestor">Gestor</option>
+                <option value="delegado">Delegado</option>
+              </select>
+            </div>
+            <div class="field"><label>Teléfono</label><input type="text" id="usr-telefono" class="search-box"></div>
+          </div>
+          <button class="btn primary" onclick="altaUsuario()">Dar de alta</button>
+        </div>
+        <div id="usuarios-lista"><div class="empty">Cargando...</div></div>
+      </div>
+
+      <!-- ALTA DE EQUIPO -->
+      <div class="subview" id="sub-altaequipo">
+        <div class="card">
+          <div class="card-title">Alta de equipo nuevo</div>
+          <div class="card-sub">También para equipos reparados que vuelven al inventario</div>
+
+          <div class="form-section-title">Identificación</div>
+          <div class="field">
+            <label>Tipo de equipo</label>
+            <select id="eq-tipo" class="search-box"><option value="">— Tipo de equipo —</option></select>
+            <input type="text" id="eq-tipo-nuevo" class="search-box" placeholder="Escribe el tipo nuevo aquí..." style="display:none;margin-top:8px;">
+            <button class="btn secondary" onclick="toggleTipoNuevo()" style="margin-top:6px;font-size:12px;padding:8px;" id="btn-tipo-toggle">¿Tipo nuevo? Crear</button>
+          </div>
+          <div class="field-grid">
+            <div class="field"><label>Nº serie *</label><input type="text" id="eq-serie" class="search-box" placeholder="Nº fabricante o S/N"></div>
+            <div class="field"><label>ID OCA *</label><input type="text" id="eq-idoca" class="search-box" placeholder="Nº interno OCA"></div>
+          </div>
+          <div class="field-grid">
+            <div class="field"><label>Marca</label><input type="text" id="eq-marca" class="search-box"></div>
+            <div class="field"><label>Modelo</label><input type="text" id="eq-modelo" class="search-box"></div>
+          </div>
+
+          <div class="form-section">
+            <div class="form-section-title">Calibración</div>
+            <div class="field-grid">
+              <div class="field"><label>Última calibración</label><input type="date" id="eq-fcalib" class="search-box"></div>
+              <div class="field"><label>Vencimiento calibración</label><input type="date" id="eq-fvenc" class="search-box"></div>
+            </div>
+            <div class="field">
+              <label>Tipo de calibración</label>
+              <select id="eq-tipocalib" class="search-box">
+                <option value="interna">Interna</option>
+                <option value="externa">Externa (ENAC)</option>
+              </select>
+            </div>
+          </div>
+
+          <button class="btn primary" onclick="altaEquipo()">Dar de alta</button>
+        </div>
+      </div>
+
+      <!-- EDITAR EQUIPO -->
+      <div class="subview" id="sub-editarequipo">
+        <div class="card">
+          <div class="card-title">Editar equipo existente</div>
+          <div class="card-sub">Actualizar calibración, marca, estado o ubicación</div>
+          <input type="text" id="edit-buscar" class="search-box" placeholder="Buscar por nº serie o nombre..." oninput="buscarParaEditar()">
+          <div id="edit-resultados"></div>
+          <div id="edit-formulario"></div>
+        </div>
+      </div>
+
+      <!-- ALTA DE FUNGIBLE -->
+      <div class="subview" id="sub-altafungible">
+        <div class="card">
+          <div class="card-title">Dar de alta fungible nuevo</div>
+          <div class="card-sub">Placas, líquidos, partículas, penetrantes...</div>
+
+          <div class="form-section-title">Identificación</div>
+          <div class="field">
+            <label>Tipo de fungible</label>
+            <select id="fg-tipo" class="search-box"><option value="">— Tipo de fungible —</option></select>
+            <input type="text" id="fg-tipo-nuevo" class="search-box" placeholder="Escribe el tipo nuevo aquí..." style="display:none;margin-top:8px;">
+            <button class="btn secondary" onclick="toggleTipoFungibleNuevo()" style="margin-top:6px;font-size:12px;padding:8px;" id="btn-tipo-fungible-toggle">¿Tipo nuevo? Crear</button>
+          </div>
+          <div class="field"><label>Tamaño / especificación</label><input type="text" id="fg-especificacion" class="search-box" placeholder="Ej. 10x40, 0-10 bares (opcional)"></div>
+          <div class="field"><label>Unidad de medida *</label><input type="text" id="fg-unidad" class="search-box" placeholder="Ej. unidades, litros, botes"></div>
+
+          <div class="form-section">
+            <div class="form-section-title">Stock</div>
+            <div class="field-grid">
+              <div class="field"><label>Stock actual *</label><input type="number" id="fg-stock" class="search-box" min="0" step="0.1"></div>
+              <div class="field"><label>Punto de pedido *</label><input type="number" id="fg-pedido" class="search-box" min="0" step="0.1"></div>
+            </div>
+          </div>
+
+          <div class="form-section">
+            <div class="form-section-title">Proveedor</div>
+            <div class="field"><label>Proveedor habitual</label><input type="text" id="fg-proveedor" class="search-box" placeholder="Opcional"></div>
+          </div>
+
+          <button class="btn primary" onclick="altaFungible()">Dar de alta</button>
+        </div>
+      </div>
+
+      <!-- REPONER STOCK DE FUNGIBLE -->
+      <div class="subview" id="sub-reponerfungible">
+        <div class="card">
+          <div class="card-title">Reponer stock de fungible existente</div>
+          <div class="card-sub">Entrada de material nuevo al almacén</div>
+          <div class="field"><label>Fungible</label><select id="fg-reponer-sel" class="search-box"><option value="">— Seleccionar fungible —</option></select></div>
+          <div class="field"><label>Cantidad recibida</label><input type="number" id="fg-reponer-cant" class="search-box" min="0" step="0.1"></div>
+          <button class="btn primary" onclick="reponerFungible()">Registrar reposición</button>
+        </div>
+      </div>
+
+      <!-- EDITAR DATOS DE FUNGIBLE -->
+      <div class="subview" id="sub-editarfungible">
+        <div class="card">
+          <div class="card-title">Editar fungible existente</div>
+          <div class="card-sub">Corregir unidad, especificación, punto de pedido o proveedor</div>
+          <div class="field"><label>Fungible</label><select id="fg-editar-sel" class="search-box" onchange="cargarEdicionFungible()"><option value="">— Seleccionar fungible —</option></select></div>
+        </div>
+        <div id="fg-edicion"></div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ============================================================
+// CONFIGURACIÓN — sustituir por los valores reales del proyecto
+// ============================================================
+const SUPABASE_URL = "https://pjsdgkxwlyirpkkwjuyk.supabase.co";
+const SUPABASE_ANON_KEY = "sb_publishable_mnk3Mw4buuvtPxI_nrnqpA_-c-I7VcQ";
+
+const { createClient } = supabase;
+const db = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+let usuarioActual = null;
+
+// ------------------------------------------------------------
+// LOGIN
+// ------------------------------------------------------------
+async function hacerLogin(){
+  const email = document.getElementById('login-email').value.trim();
+  const password = document.getElementById('login-password').value;
+  const errorBox = document.getElementById('login-error');
+  errorBox.textContent = "";
+
+  const { data, error } = await db.auth.signInWithPassword({ email, password });
+  if(error){
+    errorBox.textContent = "No se pudo entrar. Revisa el correo y la contraseña.";
+    return;
+  }
+  await cargarUsuario();
+}
+
+async function cargarUsuario(){
+  const { data: { user } } = await db.auth.getUser();
+  if(!user) return;
+
+  const { data: perfil } = await db.from('usuarios').select('*').eq('id', user.id).single();
+  usuarioActual = perfil;
+
+  document.getElementById('login-screen').style.display = 'none';
+  document.getElementById('app').style.display = 'block';
+  document.getElementById('user-name').textContent = perfil.nombre_completo;
+
+  if(perfil.rol === 'gestor' || perfil.rol === 'delegado'){
+    document.getElementById('tab-gestor').style.display = 'block';
+  }
+
+  cargarMiLinea();
+}
+
+async function cerrarSesion(){
+  await db.auth.signOut();
+  location.reload();
+}
+
+// Comprobar sesión activa al cargar la página
+(async () => {
+  const { data: { session } } = await db.auth.getSession();
+  if(session) await cargarUsuario();
+})();
+
+// ------------------------------------------------------------
+// NAVEGACIÓN
+// ------------------------------------------------------------
+function cambiarTab(vista){
+  document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.view === vista));
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  document.getElementById('view-' + vista).classList.add('active');
+  if(vista === 'linea') cargarMiLinea();
+  if(vista === 'gestor') cargarPanelGestor();
+  if(vista === 'buscar') cargarCategoriasBusqueda();
+}
+
+function cambiarSubtab(sub){
+  document.querySelectorAll('.subtab').forEach(t => t.classList.toggle('active', t.dataset.sub === sub));
+  document.querySelectorAll('.subview').forEach(v => v.classList.remove('active'));
+  document.getElementById('sub-' + sub).classList.add('active');
+  if(sub === 'inventario') cargarInventario();
+  if(sub === 'calibraciones') cargarCalibraciones();
+  if(sub === 'fungibles') cargarFungibles();
+  if(sub === 'historico-fungibles') cargarHistoricoFungibles();
+  if(sub === 'usuarios') cargarUsuarios();
+  if(sub === 'solicitudes') cargarSolicitudesVivo();
+  if(sub === 'altaequipo') cargarSelectorTipos();
+  if(sub === 'altafungible') cargarSelectorTiposFungible();
+  if(sub === 'reponerfungible') cargarSelectorFungibles('fg-reponer-sel');
+  if(sub === 'editarfungible') cargarSelectorFungibles('fg-editar-sel');
+}
+
+// ------------------------------------------------------------
+// ALTA Y EDICIÓN DE EQUIPOS (Gestor)
+// ------------------------------------------------------------
+async function cargarSelectorTipos(){
+  const { data } = await db.from('tipos_equipo').select('id, nombre').order('nombre');
+  const sel = document.getElementById('eq-tipo');
+  sel.innerHTML = '<option value="">— Tipo de equipo —</option>' +
+    (data||[]).map(t => `<option value="${t.id}">${t.nombre}</option>`).join('');
+}
+
+function toggleTipoNuevo(){
+  const inp = document.getElementById('eq-tipo-nuevo');
+  const sel = document.getElementById('eq-tipo');
+  const btn = document.getElementById('btn-tipo-toggle');
+  if(inp.style.display === 'none'){
+    inp.style.display = 'block'; sel.style.display = 'none';
+    btn.textContent = 'Usar tipo existente';
+  } else {
+    inp.style.display = 'none'; sel.style.display = 'block';
+    btn.textContent = '¿Tipo nuevo? Crear';
+  }
+}
+
+async function altaEquipo(){
+  let tipoId = document.getElementById('eq-tipo').value;
+  const tipoNuevo = document.getElementById('eq-tipo-nuevo').value.trim();
+  const serie = document.getElementById('eq-serie').value.trim();
+  const idOca = document.getElementById('eq-idoca').value.trim();
+  const marca = document.getElementById('eq-marca').value.trim() || null;
+  const modelo = document.getElementById('eq-modelo').value.trim() || null;
+  const fCalib = document.getElementById('eq-fcalib').value || null;
+  const fVenc = document.getElementById('eq-fvenc').value || null;
+  const tipoCalib = document.getElementById('eq-tipocalib').value || 'interna';
+
+  if(!serie || !idOca){ mostrarToast('El nº de serie y la ID OCA son obligatorios.'); return; }
+
+  if(tipoNuevo && !tipoId){
+    const { data: nuevoTipo, error: errTipo } = await db.from('tipos_equipo')
+      .insert({ nombre: tipoNuevo, categoria: 'medida_calibrable', requiere_calibracion: true })
+      .select().single();
+    if(errTipo){ mostrarToast('Error al crear tipo: ' + errTipo.message); return; }
+    tipoId = nuevoTipo.id;
+  }
+  if(!tipoId){ mostrarToast('Selecciona o crea un tipo de equipo.'); return; }
+
+  const { data: deleg } = await db.from('delegaciones').select('id').limit(1).single();
+  const { error } = await db.from('equipos').insert({
+    tipo_equipo_id: tipoId, nº_serie: serie, id_oca: idOca, marca, modelo, estado: 'disponible',
+    delegacion_propietaria_id: deleg.id, delegacion_actual_id: deleg.id,
+    fecha_ultima_calibracion: fCalib, fecha_vencimiento_calibracion: fVenc, tipo_calibracion: tipoCalib,
+    ubicacion_texto: 'Almacén'
+  });
+  if(error){ mostrarToast('Error: ' + error.message); return; }
+
+  await db.from('movimientos').insert({
+    equipo_id: (await db.from('equipos').select('id').eq('nº_serie', serie).single()).data.id,
+    usuario_id: usuarioActual.id, accion: 'alta', detalle: 'Alta desde Panel Gestor'
+  });
+
+  mostrarToast('Equipo dado de alta correctamente.');
+  ['eq-serie','eq-idoca','eq-marca','eq-modelo','eq-fcalib','eq-fvenc','eq-tipo-nuevo'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('eq-tipocalib').value = 'interna';
+  document.getElementById('eq-tipo').value = '';
+  cargarSelectorTipos();
+}
+
+async function buscarParaEditar(){
+  const termino = document.getElementById('edit-buscar').value.trim();
+  document.getElementById('edit-formulario').innerHTML = '';
+  if(termino.length < 2){ document.getElementById('edit-resultados').innerHTML = ''; return; }
+
+  const { data } = await db.from('equipos')
+    .select('id, nº_serie, id_oca, estado, marca, modelo, fecha_ultima_calibracion, fecha_vencimiento_calibracion, tipo_calibracion, ubicacion_texto, tipos_equipo(nombre)')
+    .or(`nº_serie.ilike.%${termino}%,id_oca.ilike.%${termino}%`)
+    .limit(10);
+
+  if(!data || data.length === 0){
+    // Try by type name
+    const { data: data2 } = await db.rpc('buscar_equipos_por_tipo', { termino });
+    if(!data2 || data2.length === 0){
+      document.getElementById('edit-resultados').innerHTML = '<div class="empty">Sin resultados.</div>';
+      return;
+    }
+    document.getElementById('edit-resultados').innerHTML = '<div class="card">' +
+      data2.map(e => `<div class="result-row" onclick="abrirEdicion('${e.id}')"><span>${e.nombre_tipo} — ${e.nº_serie}</span><span class="badge info">${e.estado}</span></div>`).join('') + '</div>';
+    return;
+  }
+
+  document.getElementById('edit-resultados').innerHTML = '<div class="card">' +
+    data.map(e => `<div class="result-row" onclick="abrirEdicion('${e.id}')"><span>${e.tipos_equipo?.nombre||''} — ${e.nº_serie}</span><span class="badge info">${e.estado}</span></div>`).join('') + '</div>';
+}
+
+async function abrirEdicion(equipoId){
+  document.getElementById('edit-resultados').innerHTML = '';
+  const { data: e } = await db.from('equipos')
+    .select('id, nº_serie, id_oca, estado, marca, modelo, observaciones, fecha_ultima_calibracion, fecha_vencimiento_calibracion, tipo_calibracion, ubicacion_texto, tecnico_actual_id, tipos_equipo(nombre)')
+    .eq('id', equipoId).single();
+  if(!e) return;
+
+  const { data: tecnicos } = await db.from('usuarios').select('id, nombre_completo').neq('activo', false).order('nombre_completo');
+  const opcionesTecnicos = (tecnicos||[]).map(t =>
+    `<option value="${t.id}" ${e.tecnico_actual_id === t.id ? 'selected' : ''}>${t.nombre_completo}</option>`
+  ).join('');
+
+  document.getElementById('edit-formulario').innerHTML = `
+    <div class="card" style="margin-top:10px; border-left:4px solid var(--accent);">
+      <div class="card-title">${e.tipos_equipo?.nombre||'Equipo'} — ${e.nº_serie} (ID: ${e.id_oca||'—'})</div>
+
+      <div class="form-section-title">Asignación</div>
+      <div class="field-grid">
+        <div class="field">
+          <label>Técnico asignado</label>
+          <select class="search-box" id="ed-tecnico">
+            <option value="" ${!e.tecnico_actual_id ? 'selected' : ''}>Almacén (sin asignar)</option>
+            ${opcionesTecnicos}
+          </select>
+        </div>
+        <div class="field">
+          <label>Estado</label>
+          <select class="search-box" id="ed-estado">
+            <option value="disponible" ${e.estado==='disponible'?'selected':''}>Disponible</option>
+            <option value="en_uso" ${e.estado==='en_uso'?'selected':''}>En uso</option>
+            <option value="en_calibracion" ${e.estado==='en_calibracion'?'selected':''}>En calibración</option>
+            <option value="averiado" ${e.estado==='averiado'?'selected':''}>Averiado</option>
+            <option value="baja" ${e.estado==='baja'?'selected':''}>Baja</option>
+          </select>
+        </div>
+      </div>
+      <div class="field"><label>Ubicación / Obra</label><input type="text" class="search-box" id="ed-ubicacion" value="${e.ubicacion_texto||''}"></div>
+
+      <div class="form-section">
+        <div class="form-section-title">Identificación</div>
+        <div class="field-grid">
+          <div class="field"><label>Nº serie</label><input type="text" class="search-box" id="ed-serie" value="${e.nº_serie||''}"></div>
+          <div class="field"><label>ID OCA</label><input type="text" class="search-box" id="ed-idoca" value="${e.id_oca||''}"></div>
+        </div>
+        <div class="field-grid">
+          <div class="field"><label>Marca</label><input type="text" class="search-box" id="ed-marca" value="${e.marca||''}"></div>
+          <div class="field"><label>Modelo</label><input type="text" class="search-box" id="ed-modelo" value="${e.modelo||''}"></div>
+        </div>
+      </div>
+
+      <div class="form-section">
+        <div class="form-section-title">Calibración</div>
+        <div class="field-grid">
+          <div class="field"><label>Última calibración</label><input type="date" class="search-box" id="ed-fcalib" value="${e.fecha_ultima_calibracion||''}"></div>
+          <div class="field"><label>Vencimiento calibración</label><input type="date" class="search-box" id="ed-fvenc" value="${e.fecha_vencimiento_calibracion||''}"></div>
+        </div>
+        <div class="field">
+          <label>Tipo de calibración</label>
+          <select class="search-box" id="ed-tipocalib">
+            <option value="interna" ${(e.tipo_calibracion||'interna')==='interna'?'selected':''}>Interna</option>
+            <option value="externa" ${e.tipo_calibracion==='externa'?'selected':''}>Externa (ENAC)</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="form-section">
+        <div class="form-section-title">Observaciones</div>
+        <div class="field"><textarea class="search-box" id="ed-observaciones" rows="3" style="resize:vertical;">${e.observaciones||''}</textarea></div>
+      </div>
+
+      <button class="btn primary" onclick="guardarEdicion('${e.id}')">Guardar cambios</button>
+    </div>`;
+}
+
+async function guardarEdicion(equipoId){
+  const tecnicoId = document.getElementById('ed-tecnico').value || null;
+  let estado = document.getElementById('ed-estado').value;
+  if(tecnicoId && estado === 'disponible') estado = 'en_uso';
+  if(!tecnicoId && estado === 'en_uso') estado = 'disponible';
+
+  const updates = {
+    tecnico_actual_id: tecnicoId,
+    nº_serie: document.getElementById('ed-serie').value.trim() || null,
+    id_oca: document.getElementById('ed-idoca').value.trim() || null,
+    marca: document.getElementById('ed-marca').value.trim() || null,
+    modelo: document.getElementById('ed-modelo').value.trim() || null,
+    fecha_ultima_calibracion: document.getElementById('ed-fcalib').value || null,
+    fecha_vencimiento_calibracion: document.getElementById('ed-fvenc').value || null,
+    tipo_calibracion: document.getElementById('ed-tipocalib').value || 'interna',
+    ubicacion_texto: document.getElementById('ed-ubicacion').value.trim() || null,
+    observaciones: document.getElementById('ed-observaciones').value.trim() || null,
+    estado,
+  };
+  const { error } = await db.from('equipos').update(updates).eq('id', equipoId);
+  if(error){ mostrarToast('Error al guardar: ' + error.message); return; }
+
+  await db.from('movimientos').insert({
+    equipo_id: equipoId, usuario_id: usuarioActual.id,
+    accion: tecnicoId ? 'entrega_directa_gestor' : 'devolucion_almacen',
+    detalle: 'Asignación manual desde Panel Gestor'
+  });
+  mostrarToast('Equipo actualizado.');
+  document.getElementById('edit-formulario').innerHTML = '';
+  document.getElementById('edit-buscar').value = '';
+}
+
+// ------------------------------------------------------------
+// ALTA Y REPOSICIÓN DE FUNGIBLES (Gestor)
+// ------------------------------------------------------------
+async function cargarSelectorTiposFungible(){
+  const { data } = await db.from('tipos_equipo').select('id, nombre').eq('categoria', 'fungible').order('nombre');
+  const sel = document.getElementById('fg-tipo');
+  sel.innerHTML = '<option value="">— Tipo de fungible —</option>' +
+    (data||[]).map(t => `<option value="${t.id}">${t.nombre}</option>`).join('');
+}
+
+function toggleTipoFungibleNuevo(){
+  const inp = document.getElementById('fg-tipo-nuevo');
+  const sel = document.getElementById('fg-tipo');
+  const btn = document.getElementById('btn-tipo-fungible-toggle');
+  if(inp.style.display === 'none'){
+    inp.style.display = 'block'; sel.style.display = 'none';
+    btn.textContent = 'Usar tipo existente';
+  } else {
+    inp.style.display = 'none'; sel.style.display = 'block';
+    btn.textContent = '¿Tipo nuevo? Crear';
+  }
+}
+
+async function cargarSelectorFungibles(selectId){
+  const { data } = await db.from('fungibles').select('id, unidad_medida, especificacion, tipos_equipo(nombre)').order('id');
+  const sel = document.getElementById(selectId);
+  if(!sel) return;
+  sel.innerHTML = '<option value="">— Seleccionar fungible —</option>' +
+    (data||[]).map(f => {
+      const etiqueta = [f.tipos_equipo?.nombre||'Fungible', f.especificacion, `(${f.unidad_medida})`].filter(Boolean).join(' — ');
+      return `<option value="${f.id}">${etiqueta}</option>`;
+    }).join('');
+}
+
+async function altaFungible(){
+  let tipoId = document.getElementById('fg-tipo').value;
+  const tipoNuevo = document.getElementById('fg-tipo-nuevo').value.trim();
+  const especificacion = document.getElementById('fg-especificacion').value.trim() || null;
+  const unidad = document.getElementById('fg-unidad').value.trim();
+  const stock = parseFloat(document.getElementById('fg-stock').value);
+  const pedido = parseFloat(document.getElementById('fg-pedido').value);
+  const proveedor = document.getElementById('fg-proveedor').value.trim() || null;
+
+  if((!tipoId && !tipoNuevo) || !unidad || isNaN(stock) || isNaN(pedido)){
+    mostrarToast('Rellena todos los campos obligatorios (*).'); return;
+  }
+
+  if(tipoNuevo && !tipoId){
+    const { data: nuevoTipo, error: errTipo } = await db.from('tipos_equipo')
+      .insert({ nombre: tipoNuevo, categoria: 'fungible', requiere_calibracion: false })
+      .select().single();
+    if(errTipo){ mostrarToast('Error al crear tipo: ' + errTipo.message); return; }
+    tipoId = nuevoTipo.id;
+  }
+
+  const { data: deleg } = await db.from('delegaciones').select('id').limit(1).single();
+  const { error } = await db.from('fungibles').insert({
+    tipo_equipo_id: tipoId, especificacion, unidad_medida: unidad, stock_actual: stock,
+    punto_pedido: pedido, delegacion_id: deleg.id, proveedor_habitual: proveedor
+  });
+  if(error){ mostrarToast('Error: ' + error.message); return; }
+
+  mostrarToast('Fungible dado de alta.');
+  ['fg-especificacion','fg-unidad','fg-stock','fg-pedido','fg-proveedor','fg-tipo-nuevo'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('fg-tipo').value = '';
+  cargarSelectorTiposFungible();
+}
+
+async function reponerFungible(){
+  const fungibleId = document.getElementById('fg-reponer-sel').value;
+  const cantidad = parseFloat(document.getElementById('fg-reponer-cant').value);
+  if(!fungibleId || isNaN(cantidad) || cantidad <= 0){
+    mostrarToast('Selecciona un fungible e indica la cantidad.'); return;
+  }
+
+  const { data: current } = await db.from('fungibles').select('stock_actual').eq('id', fungibleId).single();
+  await db.from('fungibles').update({ stock_actual: current.stock_actual + cantidad }).eq('id', fungibleId);
+
+  await db.from('movimientos_fungibles').insert({
+    fungible_id: fungibleId, usuario_id: usuarioActual.id, tipo: 'reposicion', cantidad
+  });
+
+  mostrarToast('Stock repuesto correctamente.');
+  document.getElementById('fg-reponer-cant').value = '';
+  cargarSelectorFungibles('fg-reponer-sel');
+}
+
+async function cargarEdicionFungible(){
+  const fungibleId = document.getElementById('fg-editar-sel').value;
+  const cont = document.getElementById('fg-edicion');
+  if(!fungibleId){ cont.innerHTML = ''; return; }
+
+  const { data: f, error } = await db.from('fungibles')
+    .select('id, unidad_medida, especificacion, punto_pedido, proveedor_habitual, tipos_equipo(nombre)')
+    .eq('id', fungibleId).single();
+  if(error){ cont.innerHTML = `<div class="empty">Error al cargar: ${error.message}</div>`; return; }
+
+  cont.innerHTML = `
+    <div class="card" style="margin-top:14px;border-left:4px solid var(--accent);">
+      <div class="card-title">Editar datos: ${f.tipos_equipo?.nombre||'Fungible'}</div>
+      <div class="form-section-title">Identificación</div>
+      <div class="field"><label>Tamaño / especificación</label><input type="text" class="search-box" id="fged-especificacion" value="${f.especificacion||''}"></div>
+      <div class="field"><label>Unidad de medida</label><input type="text" class="search-box" id="fged-unidad" value="${f.unidad_medida||''}"></div>
+      <div class="form-section">
+        <div class="form-section-title">Stock y proveedor</div>
+        <div class="field-grid">
+          <div class="field"><label>Punto de pedido</label><input type="number" class="search-box" id="fged-pedido" value="${f.punto_pedido||0}" min="0" step="0.1"></div>
+          <div class="field"><label>Proveedor habitual</label><input type="text" class="search-box" id="fged-proveedor" value="${f.proveedor_habitual||''}"></div>
+        </div>
+      </div>
+      <button class="btn primary" onclick="guardarEdicionFungible('${f.id}')">Guardar cambios</button>
+    </div>`;
+}
+
+async function guardarEdicionFungible(fungibleId){
+  const updates = {
+    especificacion: document.getElementById('fged-especificacion').value.trim() || null,
+    unidad_medida: document.getElementById('fged-unidad').value.trim(),
+    punto_pedido: parseFloat(document.getElementById('fged-pedido').value) || 0,
+    proveedor_habitual: document.getElementById('fged-proveedor').value.trim() || null,
+  };
+  const { error } = await db.from('fungibles').update(updates).eq('id', fungibleId);
+  if(error){ mostrarToast('Error al guardar: ' + error.message); return; }
+  mostrarToast('Fungible actualizado.');
+  cargarSelectorFungibles('fg-editar-sel');
+  cargarEdicionFungible();
+}
+
+// ------------------------------------------------------------
+// PANEL GESTOR/DELEGADO (Bloque 5)
+// ------------------------------------------------------------
+async function cargarPanelGestor(){
+  await cargarKPIs();
+  await cargarSolicitudesVivo();
+}
+
+async function cargarKPIs(){
+  const [{ count: disponibles }, { count: enUso }, { count: bloqueadasHoy }, { data: todosEquipos }, { data: fungibles }] = await Promise.all([
+    db.from('equipos').select('*', { count: 'exact', head: true }).eq('estado','disponible'),
+    db.from('equipos').select('*', { count: 'exact', head: true }).eq('estado','en_uso'),
+    db.from('solicitudes').select('*', { count: 'exact', head: true }).eq('estado','bloqueada'),
+    db.from('equipos').select('fecha_vencimiento_calibracion').not('fecha_vencimiento_calibracion','is',null),
+    db.from('fungibles').select('stock_actual, punto_pedido'),
+  ]);
+
+  const hoy = new Date();
+  let vencidos = 0, menos7 = 0, menos30 = 0;
+  (todosEquipos||[]).forEach(e => {
+    const dias = Math.ceil((new Date(e.fecha_vencimiento_calibracion) - hoy)/86400000);
+    if(dias < 0) vencidos++;
+    else if(dias <= 7) menos7++;
+    else if(dias <= 30) menos30++;
+  });
+  const calibTotal = vencidos + menos7 + menos30;
+  const fungiblesBajo = (fungibles||[]).filter(f => f.stock_actual <= f.punto_pedido).length;
+
+  document.getElementById('kpi-strip').innerHTML = `
+    <div class="kpi"><div class="num">${disponibles||0}</div><div class="lbl">Disponibles</div></div>
+    <div class="kpi"><div class="num">${enUso||0}</div><div class="lbl">En uso</div></div>
+    <div class="kpi"><div class="num" style="color:${bloqueadasHoy>0?'var(--bad)':'inherit'}">${bloqueadasHoy||0}</div><div class="lbl">Bloqueadas</div></div>
+    <div class="kpi"><div class="num" style="color:${vencidos>0?'var(--bad)':calibTotal>0?'var(--warn)':'inherit'}">${calibTotal}</div><div class="lbl">Calib. alerta</div></div>
+    <div class="kpi"><div class="num" style="color:${fungiblesBajo>0?'var(--bad)':'inherit'}">${fungiblesBajo}</div><div class="lbl">Fungibles bajos</div></div>
+  `;
+}
+
+async function cargarSolicitudesVivo(){
+  const { data, error } = await db
+    .from('solicitudes')
+    .select(`
+      id, estado, fecha_solicitud, fecha_entrega, equipo_id,
+      equipos(nº_serie, tipos_equipo(id, nombre)),
+      solicitante:usuarios!tecnico_solicitante_id(nombre_completo),
+      poseedor:usuarios!tecnico_poseedor_id(nombre_completo)
+    `)
+    .in('estado', ['pendiente','entregado','bloqueada'])
+    .order('fecha_solicitud', { ascending: false });
+
+  if(error) console.error('Error cargando solicitudes:', error.message);
+
+  const cols = { pendiente: [], entregado: [], bloqueada: [] };
+  (data||[]).forEach(s => { if(cols[s.estado]) cols[s.estado].push(s); });
+
+  const tarjeta = (s) => {
+    const destino = s.poseedor?.nombre_completo || 'Almacén';
+    const botonAlternativa = s.estado === 'bloqueada'
+      ? `<button class="btn secondary" style="margin-top:6px;width:100%;font-size:12px;padding:6px;"
+           onclick="buscarAlternativa('${s.id}','${s.equipo_id}','${s.equipos?.tipos_equipo?.id||''}','${(s.equipos?.tipos_equipo?.nombre||'').replace(/'/g,'')}')">Buscar alternativa</button>`
+      : '';
+    const fechaSolicitud = (s.estado === 'pendiente' && s.fecha_solicitud)
+      ? `<div>🕒 Solicitado desde: <strong>${new Date(s.fecha_solicitud).toLocaleString('es-ES', {day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'})}</strong></div>`
+      : '';
+    const avisoPendiente = (s.estado === 'pendiente' && destino !== 'Almacén')
+      ? `<span class="badge warn" style="margin-top:4px;display:inline-block;">⚠ Sin respuesta de ${destino}</span>
+         <button class="btn secondary" style="margin-top:6px;width:100%;font-size:12px;padding:6px;"
+           onclick="enviarRecordatorioEntrega('${s.id}','${s.equipo_id}','${destino.replace(/'/g,'')}')">Enviar recordatorio</button>`
+      : '';
+    const botonAlmacen = (s.estado === 'pendiente' && destino === 'Almacén')
+      ? `<button class="btn primary" style="margin-top:6px;width:100%;font-size:12px;padding:8px;"
+           onclick="entregarDesdeAlmacen('${s.id}','${s.equipo_id}')">Entregar desde almacén</button>`
+      : '';
+    const fechaEntrega = (s.estado === 'entregado' && s.fecha_entrega)
+      ? `<div>🕒 Entrega sin confirmar desde: <strong>${new Date(s.fecha_entrega).toLocaleString('es-ES', {day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'})}</strong></div>`
+      : '';
+    const nombreConfirmador = s.solicitante?.nombre_completo || 'el solicitante';
+    const avisoSinConfirmar = s.estado === 'entregado'
+      ? `<span class="badge warn" style="margin-top:4px;display:inline-block;">⚠ Sin confirmar por ${nombreConfirmador}</span>
+         <button class="btn secondary" style="margin-top:6px;width:100%;font-size:12px;padding:6px;"
+           onclick="enviarRecordatorio('${s.id}','${s.equipo_id}','${nombreConfirmador.replace(/'/g,'')}')">Enviar recordatorio</button>`
+      : '';
+    return `<div class="kanban-card">
+      <strong>${s.equipos?.tipos_equipo?.nombre||''}</strong><br>
+      <span style="color:var(--muted);font-size:11px">${s.equipos?.nº_serie||'—'}</span>
+      <div style="margin-top:6px;font-size:11px;line-height:1.5;">
+        <div>👤 Solicita: <strong>${s.solicitante?.nombre_completo || '—'}</strong></div>
+        <div>➡️ A: <strong>${destino}</strong></div>
+        ${fechaSolicitud}
+        ${avisoPendiente}
+        ${botonAlmacen}
+        ${fechaEntrega}
+        ${avisoSinConfirmar}
+      </div>
+      ${botonAlternativa}
+    </div>`;
+  };
+
+  const col = (titulo, items) => `
+    <div class="kanban-col">
+      <h4>${titulo} (${items.length})</h4>
+      ${items.map(tarjeta).join('') || '<div class="kanban-card" style="color:#999">Sin elementos</div>'}
+    </div>`;
+
+  document.getElementById('sub-solicitudes').innerHTML = `
+    <div class="kanban">
+      ${col('Pendiente', cols.pendiente)}
+      ${col('Esperando confirmación', cols.entregado)}
+      ${col('Bloqueada', cols.bloqueada)}
+    </div>`;
+}
+
+// ------------------------------------------------------------
+// RESOLUCIÓN DE SOLICITUDES BLOQUEADAS (Gestor busca alternativa)
+// ------------------------------------------------------------
+async function buscarAlternativa(solicitudId, equipoOriginalId, tipoId, tipoNombre){
+  if(!tipoId){ mostrarToast('No se pudo determinar el tipo de equipo.'); return; }
+
+  const { data: alternativas, error } = await db
+    .from('equipos')
+    .select('id, nº_serie, id_oca, estado, usuarios(nombre_completo)')
+    .eq('tipo_equipo_id', tipoId)
+    .neq('id', equipoOriginalId)
+    .in('estado', ['disponible','en_uso']);
+
+  if(error){ mostrarToast('Error al buscar alternativas: ' + error.message); return; }
+  if(!alternativas || alternativas.length === 0){
+    mostrarToast('No hay otra unidad de este tipo disponible ni asignada a otro técnico.');
+    return;
+  }
+
+  const opciones = alternativas.map(e => {
+    const enAlmacen = e.estado === 'disponible';
+    const etiqueta = enAlmacen ? 'Almacén' : (e.usuarios?.nombre_completo || 'Otro técnico');
+    return `<div class="fungible-opcion" onclick="${enAlmacen ? `resolverDesdeAlmacen('${solicitudId}','${e.id}')` : `pedirConfirmacionTecnico('${solicitudId}','${e.id}','${(e.usuarios?.nombre_completo||'Otro técnico').replace(/'/g,'')}')`}">
+      <strong>${e.nº_serie}</strong>
+      <div style="font-size:12px;color:var(--muted);">${enAlmacen ? 'Disponible en Almacén — asignar directamente' : 'La tiene: ' + etiqueta + ' — pedirle que la entregue'}</div>
+    </div>`;
+  }).join('');
+
+  document.getElementById('modal-root').innerHTML = `
+    <div class="modal-overlay" onclick="if(event.target===this) cerrarModalFungible()">
+      <div class="modal-box">
+        <h3>Alternativas para ${tipoNombre}</h3>
+        <div>${opciones}</div>
+        <button class="btn" style="margin-top:10px;width:100%;" onclick="cerrarModalFungible()">Cancelar</button>
+      </div>
+    </div>`;
+}
+
+async function resolverDesdeAlmacen(solicitudBloqueadaId, equipoAlmacenId){
+  if(!confirm('¿Confirmas asignar esta unidad de almacén directamente al solicitante?')) return;
+  const { error } = await db.rpc('asignar_desde_almacen_gestor', {
+    p_solicitud_bloqueada_id: solicitudBloqueadaId, p_equipo_almacen_id: equipoAlmacenId
+  });
+  if(error){ mostrarToast('Error al asignar: ' + error.message); return; }
+  mostrarToast('Equipo asignado desde almacén.');
+  cerrarModalFungible();
+  cargarSolicitudesVivo();
+}
+
+function pedirConfirmacionTecnico(solicitudBloqueadaId, equipoId, nombreTecnico){
+  if(!confirm(`¿Confirmas pedirle a ${nombreTecnico} que entregue esta unidad al solicitante?`)) return;
+  resolverConTecnico(solicitudBloqueadaId, equipoId);
+}
+
+async function resolverConTecnico(solicitudBloqueadaId, equipoId){
+  const { data: eq } = await db.from('equipos').select('tecnico_actual_id').eq('id', equipoId).single();
+  if(!eq?.tecnico_actual_id){ mostrarToast('No se pudo identificar al técnico actual.'); return; }
+
+  const { error } = await db.rpc('crear_solicitud_gestor', {
+    p_solicitud_bloqueada_id: solicitudBloqueadaId,
+    p_equipo_id: equipoId,
+    p_tecnico_poseedor_id: eq.tecnico_actual_id
+  });
+  if(error){ mostrarToast('Error al reasignar: ' + error.message); return; }
+  mostrarToast('Nueva solicitud enviada al técnico.');
+  cerrarModalFungible();
+  cargarSolicitudesVivo();
+}
+
+async function enviarRecordatorio(solicitudId, equipoId, nombreReceptor){
+  if(!confirm(`¿Enviar un recordatorio por Telegram a ${nombreReceptor} para que confirme la recepción?`)) return;
+  const { error } = await db.rpc('enviar_recordatorio_confirmacion', { p_solicitud_id: solicitudId });
+  if(error){ mostrarToast('Error al enviar recordatorio: ' + error.message); return; }
+  const { error: errMov } = await db.from('movimientos').insert({
+    equipo_id: equipoId, solicitud_id: solicitudId, usuario_id: usuarioActual.id,
+    accion: 'recordatorio_confirmacion', detalle: `Recordatorio Telegram enviado a ${nombreReceptor}`
+  });
+  if(errMov) console.error('Error registrando recordatorio en movimientos:', errMov.message);
+  mostrarToast(`Recordatorio enviado a ${nombreReceptor} por Telegram.`);
+}
+
+async function entregarDesdeAlmacen(solicitudId, equipoId){
+  if(!confirm('¿Confirmas que entregas este equipo del almacén al técnico solicitante?')) return;
+  const { error: errSol } = await db.from('solicitudes')
+    .update({ estado: 'entregado', fecha_entrega: new Date().toISOString() })
+    .eq('id', solicitudId);
+  if(errSol){ mostrarToast('Error: ' + errSol.message); return; }
+
+  await db.from('movimientos').insert({
+    equipo_id: equipoId, solicitud_id: solicitudId, usuario_id: usuarioActual.id,
+    accion: 'entregado', detalle: 'Entregado desde almacén por gestor'
+  });
+  mostrarToast('Equipo entregado. El técnico debe confirmar la recepción.');
+  cargarSolicitudesVivo();
+}
+
+async function enviarRecordatorioEntrega(solicitudId, equipoId, nombrePoseedor){
+  if(!confirm(`¿Enviar un recordatorio por Telegram a ${nombrePoseedor} para que entregue el equipo o indique que no puede?`)) return;
+  const { error } = await db.rpc('enviar_recordatorio_entrega', { p_solicitud_id: solicitudId });
+  if(error){ mostrarToast('Error al enviar recordatorio: ' + error.message); return; }
+  const { error: errMov } = await db.from('movimientos').insert({
+    equipo_id: equipoId, solicitud_id: solicitudId, usuario_id: usuarioActual.id,
+    accion: 'recordatorio_confirmacion', detalle: `Recordatorio de entrega enviado a ${nombrePoseedor}`
+  });
+  if(errMov) console.error('Error registrando recordatorio en movimientos:', errMov.message);
+  mostrarToast(`Recordatorio enviado a ${nombrePoseedor} por Telegram.`);
+}
+
+let inventarioDataCompleta = [];
+let inventarioOrigenMap = {};
+let inventarioEntregadosEsperando = new Set();
+
+async function cargarInventario(){
+  const { data } = await db
+    .from('equipos')
+    .select('id, nº_serie, id_oca, estado, marca, modelo, ubicacion_texto, observaciones, fecha_ultima_calibracion, fecha_vencimiento_calibracion, tipo_calibracion, tipos_equipo(nombre), usuarios(nombre_completo)')
+    .neq('estado','baja')
+    .order('nº_serie');
+
+  inventarioDataCompleta = data || [];
+
+  const { data: entregadosSinConfirmar, error: errEntregados } = await db
+    .from('solicitudes')
+    .select('equipo_id')
+    .eq('estado', 'entregado');
+  if(errEntregados) console.error('Error cargando entregas sin confirmar:', errEntregados.message);
+  inventarioEntregadosEsperando = new Set((entregadosSinConfirmar||[]).map(s => s.equipo_id));
+
+  const idsAsignados = inventarioDataCompleta
+    .filter(e => e.estado === 'en_uso' || e.estado === 'solicitud_pendiente' || e.estado === 'solicitud_bloqueada')
+    .map(e => e.id);
+
+  inventarioOrigenMap = {};
+  if(idsAsignados.length){
+    const { data: movs, error: errMovs } = await db
+      .from('movimientos')
+      .select('equipo_id, accion, timestamp, usuario_id, detalle')
+      .in('equipo_id', idsAsignados)
+      .in('accion', ['entregado','recogida_almacen','asignado_gestor','entrega_directa_gestor'])
+      .order('timestamp', { ascending: false });
+    if(errMovs) console.error('Error cargando origen de equipos:', errMovs.message);
+    const movUserIds = [...new Set((movs||[]).map(m => m.usuario_id).filter(Boolean))];
+    let movUserMap = {};
+    if(movUserIds.length){
+      const { data: mus } = await db.from('usuarios').select('id, nombre_completo').in('id', movUserIds);
+      (mus||[]).forEach(u => { movUserMap[u.id] = u.nombre_completo; });
+    }
+    (movs||[]).forEach(m => {
+      if(inventarioOrigenMap[m.equipo_id]) return;
+      const esAlmacen = ['recogida_almacen','asignado_gestor','entrega_directa_gestor'].includes(m.accion)
+        || (m.detalle && m.detalle.toLowerCase().includes('almacén'));
+      inventarioOrigenMap[m.equipo_id] = {
+        nombre: esAlmacen ? 'Almacén' : (movUserMap[m.usuario_id] || 'Otro técnico'),
+        fecha: m.timestamp
+      };
+    });
+  }
+
+  const categoriasUnicas = [...new Set(
+    inventarioDataCompleta
+      .map(e => (e.tipos_equipo?.nombre || '').trim().split(' ')[0].toUpperCase())
+      .filter(Boolean)
+  )].sort();
+  const opcionesTipo = categoriasUnicas.map(c => `<option value="${c}">${c}</option>`).join('');
+
+  document.getElementById('sub-inventario').innerHTML = `
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;">
+      <select class="search-box" id="filtro-inv-tipo" style="max-width:220px;" onchange="filtrarInventario()">
+        <option value="">Todos los tipos</option>
+        ${opcionesTipo}
+      </select>
+      <select class="search-box" id="filtro-inv-estado" style="max-width:200px;" onchange="filtrarInventario()">
+        <option value="">Todos los estados</option>
+        <option value="disponible">Disponible</option>
+        <option value="en_uso">En uso</option>
+        <option value="en_calibracion">En calibración</option>
+        <option value="averiado">Averiado</option>
+      </select>
+    </div>
+    <div style="color:var(--muted);font-size:12px;margin-bottom:8px;">Haz clic en cualquier fila para editarla</div>
+    <div id="inventario-edicion"></div>
+    <div style="overflow-x:auto;">
+      <table class="inv" id="tabla-inventario">
+        <tr><th>Nº Serie</th><th>ID OCA</th><th>Tipo</th><th>Marca</th><th>Modelo</th><th>Estado</th><th>Recibido de</th><th>Fecha recibido</th><th>Observaciones</th><th>Venc. Calib.</th></tr>
+      </table>
+    </div>
+    <div style="color:var(--muted);font-size:12px;margin-top:8px;" id="inventario-total"></div>`;
+
+  renderTablaInventario(inventarioDataCompleta);
+}
+
+function filtrarInventario(){
+  const categoria = document.getElementById('filtro-inv-tipo').value;
+  const estado = document.getElementById('filtro-inv-estado').value;
+  const filtrada = inventarioDataCompleta.filter(e => {
+    if(categoria && !(e.tipos_equipo?.nombre || '').trim().toUpperCase().startsWith(categoria)) return false;
+    if(!estado) return true;
+    if(estado === 'en_uso') return ['en_uso','solicitud_pendiente','solicitud_bloqueada'].includes(e.estado);
+    return e.estado === estado;
+  });
+  renderTablaInventario(filtrada);
+}
+
+function renderTablaInventario(lista){
+  const filas = (lista||[]).map(e => {
+    let badgeCls = 'info', badgeTxt = e.estado;
+    if(e.estado === 'disponible'){
+      if(e.ubicacion_texto && e.ubicacion_texto !== 'Almacén' && e.ubicacion_texto.toUpperCase() !== 'ALMACEN'){
+        badgeCls='obra'; badgeTxt = e.ubicacion_texto;
+      } else {
+        badgeCls='ok'; badgeTxt='Almacén';
+      }
+    }
+    else if(e.estado === 'averiado'){ badgeCls='bad'; badgeTxt='Averiado'; }
+    else if(e.estado === 'en_calibracion'){ badgeCls='warn'; badgeTxt='En calibración'; }
+    else if(e.estado === 'solicitud_pendiente'){
+      badgeCls='warn';
+      badgeTxt = inventarioEntregadosEsperando.has(e.id)
+        ? (e.usuarios?.nombre_completo || 'Asignado') + ' (entregado, sin confirmar)'
+        : (e.usuarios?.nombre_completo || 'Asignado') + ' (solicitud pendiente)';
+    }
+    else if(e.estado === 'solicitud_bloqueada'){ badgeCls='bad'; badgeTxt = (e.usuarios?.nombre_completo || 'Asignado') + ' (bloqueada — ver Solicitudes)'; }
+    else if(e.estado === 'en_uso'){ badgeCls='info'; badgeTxt = e.usuarios?.nombre_completo || 'Asignado'; }
+    return `<tr onclick="editarDesdeInventario('${e.id}')" style="cursor:pointer;" title="Clic para editar">
+      <td><strong>${e.nº_serie}</strong></td>
+      <td>${e.id_oca||'—'}</td>
+      <td>${e.tipos_equipo?.nombre||'—'}</td>
+      <td>${e.marca||'—'}</td>
+      <td>${e.modelo||'—'}</td>
+      <td><span class="badge ${badgeCls}">${badgeTxt}</span></td>
+      <td style="font-size:13px;">${(() => {
+        if(!(e.estado==='en_uso'||e.estado==='solicitud_pendiente'||e.estado==='solicitud_bloqueada')) return '—';
+        const o = inventarioOrigenMap[e.id];
+        if(!o) return '—';
+        return `<strong>${o.nombre}</strong>`;
+      })()}</td>
+      <td style="font-size:11px;color:var(--muted);">${(() => {
+        if(!(e.estado==='en_uso'||e.estado==='solicitud_pendiente'||e.estado==='solicitud_bloqueada')) return '—';
+        const o = inventarioOrigenMap[e.id];
+        return o?.fecha ? new Date(o.fecha).toLocaleDateString('es-ES') : '—';
+      })()}</td>
+      <td style="max-width:160px;font-size:12px;">${e.observaciones||'—'}</td>
+      <td style="font-size:11px;color:var(--muted);">${e.fecha_vencimiento_calibracion||'—'}</td>
+    </tr>`;
+  }).join('');
+
+  document.getElementById('tabla-inventario').innerHTML = `
+    <tr><th>Nº Serie</th><th>ID OCA</th><th>Tipo</th><th>Marca</th><th>Modelo</th><th>Estado</th><th>Recibido de</th><th>Fecha recibido</th><th>Observaciones</th><th>Venc. Calib.</th></tr>
+    ${filas || '<tr><td colspan="10" class="empty">Sin equipos que coincidan con el filtro.</td></tr>'}`;
+  document.getElementById('inventario-total').textContent = `Total: ${(lista||[]).length} equipos`;
+}
+
+async function editarDesdeInventario(equipoId){
+  const { data: e } = await db.from('equipos')
+    .select('id, nº_serie, id_oca, estado, marca, modelo, fecha_ultima_calibracion, fecha_vencimiento_calibracion, ubicacion_texto, observaciones, tecnico_actual_id, tipos_equipo(nombre)')
+    .eq('id', equipoId).single();
+  if(!e) return;
+
+  const { data: tecnicos } = await db.from('usuarios').select('id, nombre_completo').neq('activo', false).order('nombre_completo');
+  const opcionesTecnicos = (tecnicos||[]).map(t =>
+    `<option value="${t.id}" ${e.tecnico_actual_id === t.id ? 'selected' : ''}>${t.nombre_completo}</option>`
+  ).join('');
+
+  const cont = document.getElementById('inventario-edicion');
+  cont.innerHTML = `
+    <div class="card" style="border-left:4px solid var(--accent); margin-bottom:14px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <div class="card-title">${e.tipos_equipo?.nombre||'Equipo'} — ${e.nº_serie} (ID: ${e.id_oca||'—'})</div>
+        <span onclick="document.getElementById('inventario-edicion').innerHTML=''" style="cursor:pointer;font-size:20px;color:var(--muted);">✕</span>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+        <div>
+          <label style="font-size:12px;color:var(--muted);">Técnico asignado</label>
+          <select class="search-box" id="inv-tecnico">
+            <option value="" ${!e.tecnico_actual_id ? 'selected' : ''}>Almacén (sin asignar)</option>
+            ${opcionesTecnicos}
+          </select>
+        </div>
+        <div>
+          <label style="font-size:12px;color:var(--muted);">Estado</label>
+          <select class="search-box" id="inv-estado">
+            <option value="disponible" ${e.estado==='disponible'?'selected':''}>Disponible</option>
+            <option value="en_uso" ${e.estado==='en_uso'?'selected':''}>En uso</option>
+            <option value="en_calibracion" ${e.estado==='en_calibracion'?'selected':''}>En calibración</option>
+            <option value="averiado" ${e.estado==='averiado'?'selected':''}>Averiado</option>
+            <option value="baja" ${e.estado==='baja'?'selected':''}>Baja</option>
+          </select>
+        </div>
+        <div>
+          <label style="font-size:12px;color:var(--muted);">Nº serie</label>
+          <input type="text" class="search-box" id="inv-serie" value="${e.nº_serie||''}" placeholder="Nº serie">
+        </div>
+        <div>
+          <label style="font-size:12px;color:var(--muted);">ID OCA</label>
+          <input type="text" class="search-box" id="inv-idoca" value="${e.id_oca||''}" placeholder="ID OCA">
+        </div>
+        <div>
+          <label style="font-size:12px;color:var(--muted);">Marca</label>
+          <input type="text" class="search-box" id="inv-marca" value="${e.marca||''}" placeholder="Marca">
+        </div>
+        <div>
+          <label style="font-size:12px;color:var(--muted);">Modelo</label>
+          <input type="text" class="search-box" id="inv-modelo" value="${e.modelo||''}" placeholder="Modelo">
+        </div>
+        <div>
+          <label style="font-size:12px;color:var(--muted);">Ubicación / Obra</label>
+          <input type="text" class="search-box" id="inv-ubicacion" value="${e.ubicacion_texto||''}" placeholder="Ubicación">
+        </div>
+        <div>
+          <label style="font-size:12px;color:var(--muted);">Última calibración</label>
+          <input type="date" class="search-box" id="inv-fcalib" value="${e.fecha_ultima_calibracion||''}">
+        </div>
+        <div>
+          <label style="font-size:12px;color:var(--muted);">Vencimiento calibración</label>
+          <input type="date" class="search-box" id="inv-fvenc" value="${e.fecha_vencimiento_calibracion||''}">
+        </div>
+        <div>
+          <label style="font-size:12px;color:var(--muted);">Tipo de calibración</label>
+          <select class="search-box" id="inv-tipocalib">
+            <option value="interna" ${(e.tipo_calibracion||'interna')==='interna'?'selected':''}>Interna</option>
+            <option value="externa" ${e.tipo_calibracion==='externa'?'selected':''}>Externa (ENAC)</option>
+          </select>
+        </div>
+      </div>
+      <div>
+        <label style="font-size:12px;color:var(--muted);">Observaciones</label>
+        <textarea class="search-box" id="inv-obs" rows="2" placeholder="Escribe observaciones...">${e.observaciones||''}</textarea>
+      </div>
+      <button class="btn primary" onclick="guardarDesdeInventario('${e.id}')">Guardar cambios</button>
+    </div>`;
+  cont.scrollIntoView({ behavior: 'smooth' });
+}
+
+async function guardarDesdeInventario(equipoId){
+  const tecnicoId = document.getElementById('inv-tecnico').value || null;
+  let estado = document.getElementById('inv-estado').value;
+  if(tecnicoId && estado === 'disponible') estado = 'en_uso';
+  if(!tecnicoId && estado === 'en_uso') estado = 'disponible';
+
+  const updates = {
+    tecnico_actual_id: tecnicoId,
+    nº_serie: document.getElementById('inv-serie').value.trim() || null,
+    id_oca: document.getElementById('inv-idoca').value.trim() || null,
+    marca: document.getElementById('inv-marca').value.trim() || null,
+    modelo: document.getElementById('inv-modelo').value.trim() || null,
+    ubicacion_texto: document.getElementById('inv-ubicacion').value.trim() || null,
+    fecha_ultima_calibracion: document.getElementById('inv-fcalib').value || null,
+    fecha_vencimiento_calibracion: document.getElementById('inv-fvenc').value || null,
+    tipo_calibracion: document.getElementById('inv-tipocalib').value || 'interna',
+    estado,
+    observaciones: document.getElementById('inv-obs').value.trim() || null,
+  };
+  const { error } = await db.from('equipos').update(updates).eq('id', equipoId);
+  if(error){ mostrarToast('Error: ' + error.message); return; }
+
+  await db.from('movimientos').insert({
+    equipo_id: equipoId, usuario_id: usuarioActual.id,
+    accion: tecnicoId ? 'entrega_directa_gestor' : 'devolucion_almacen',
+    detalle: 'Asignación manual desde inventario'
+  });
+  mostrarToast('Equipo actualizado.');
+  document.getElementById('inventario-edicion').innerHTML = '';
+  cargarInventario();
+}
+
+async function cargarCalibraciones(){
+  const { data } = await db
+    .from('equipos')
+    .select('id, nº_serie, id_oca, marca, fecha_ultima_calibracion, fecha_vencimiento_calibracion, tipo_calibracion, tipos_equipo(nombre), usuarios(nombre_completo)')
+    .not('fecha_vencimiento_calibracion','is',null)
+    .order('fecha_vencimiento_calibracion');
+
+  const hoy = new Date();
+  const vencidos = [], menos7 = [], menos30 = [], ok = [];
+
+  (data||[]).forEach(e => {
+    const dias = Math.ceil((new Date(e.fecha_vencimiento_calibracion) - hoy)/86400000);
+    e._dias = dias;
+    if(dias < 0) vencidos.push(e);
+    else if(dias <= 7) menos7.push(e);
+    else if(dias <= 30) menos30.push(e);
+    else ok.push(e);
+  });
+
+  const filaCalib = (e) => {
+    const badge = e._dias < 0 ? 'bad' : e._dias <= 7 ? 'bad' : e._dias <= 30 ? 'warn' : 'ok';
+    const texto = e._dias < 0 ? `Vencida hace ${Math.abs(e._dias)}d` : `${e._dias} días`;
+    return `<tr>
+      <td><strong>${e.nº_serie}</strong></td>
+      <td>${e.id_oca||'—'}</td>
+      <td>${e.tipos_equipo?.nombre||'—'}</td>
+      <td>${e.marca||'—'}</td>
+      <td><span class="badge ${e.tipo_calibracion==='externa'?'info':'ok'}" style="font-size:10px;">${e.tipo_calibracion==='externa'?'ENAC':'Interna'}</span></td>
+      <td>${e.fecha_ultima_calibracion||'—'}</td>
+      <td>${e.fecha_vencimiento_calibracion||'—'}</td>
+      <td><span class="badge ${badge}">${texto}</span></td>
+      <td>${e.usuarios?.nombre_completo || ((e.ubicacion_texto && e.ubicacion_texto.toUpperCase() !== 'ALMACEN' && e.ubicacion_texto !== 'Almacén') ? e.ubicacion_texto : 'Almacén')}</td>
+    </tr>`;
+  };
+
+  const seccion = (titulo, color, items) => {
+    if(items.length === 0) return '';
+    return `
+      <div class="card" style="border-left:4px solid var(--${color}); margin-bottom:14px;">
+        <div class="card-title" style="color:var(--${color})">${titulo} (${items.length})</div>
+        <div style="overflow-x:auto;">
+          <table class="inv">
+            <tr><th>Nº Serie</th><th>ID OCA</th><th>Tipo</th><th>Marca</th><th>Calibración</th><th>Últ. Calibración</th><th>Vencimiento</th><th>Quedan</th><th>Poseedor</th></tr>
+            ${items.map(filaCalib).join('')}
+          </table>
+        </div>
+      </div>`;
+  };
+
+  document.getElementById('sub-calibraciones').innerHTML =
+    seccion('CALIBRACIÓN VENCIDA — Intervención inmediata', 'bad', vencidos) +
+    seccion('VENCE EN MENOS DE 7 DÍAS — Urgente', 'bad', menos7) +
+    seccion('VENCE EN MENOS DE 30 DÍAS — Planificar', 'warn', menos30) +
+    seccion('Calibración vigente', 'ok', ok) +
+    (!data || data.length === 0 ? '<div class="empty">Sin calibraciones registradas.</div>' : '');
+}
+
+let fungiblesDataCompleta = [];
+
+async function cargarFungibles(){
+  const { data } = await db.from('fungibles').select('id, stock_actual, punto_pedido, unidad_medida, especificacion, proveedor_habitual, tipos_equipo(nombre)').order('id');
+  fungiblesDataCompleta = data || [];
+
+  const categoriasUnicas = [...new Set(fungiblesDataCompleta.map(f => (f.tipos_equipo?.nombre||'').trim().split(' ')[0].toUpperCase()).filter(Boolean))].sort();
+  const opciones = categoriasUnicas.map(c => `<option value="${c}">${c}</option>`).join('');
+
+  document.getElementById('sub-fungibles').innerHTML = `
+    <div style="margin-bottom:10px;">
+      <select class="search-box" id="filtro-fungibles" style="max-width:250px;" onchange="filtrarFungibles()">
+        <option value="">Todos los fungibles</option>
+        ${opciones}
+      </select>
+    </div>
+    <div id="fungibles-lista"></div>`;
+
+  renderFungibles(fungiblesDataCompleta);
+}
+
+function filtrarFungibles(){
+  const cat = document.getElementById('filtro-fungibles').value;
+  const filtrada = cat
+    ? fungiblesDataCompleta.filter(f => (f.tipos_equipo?.nombre||'').trim().toUpperCase().startsWith(cat))
+    : fungiblesDataCompleta;
+  renderFungibles(filtrada);
+}
+
+function renderFungibles(lista){
+  const items = (lista||[]).map(f => {
+    const pct = Math.min(100, Math.round((f.stock_actual / Math.max(f.punto_pedido * 2, 1)) * 100));
+    const bajo = f.stock_actual <= f.punto_pedido;
+    const titulo = [f.tipos_equipo?.nombre || 'Fungible', f.especificacion].filter(Boolean).join(' — ');
+    return `
+      <div class="card" style="${bajo?'border-left:4px solid var(--bad)':''}">
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+          <div>
+            <div class="card-title">${titulo}</div>
+            <div class="card-sub">Stock: <strong>${f.stock_actual} ${f.unidad_medida}</strong> ${bajo?'<span class="badge bad">Bajo mínimo</span>':''}</div>
+          </div>
+          <div style="text-align:right;font-size:12px;color:var(--muted);">
+            Mínimo: ${f.punto_pedido} ${f.unidad_medida}<br>
+            ${f.proveedor_habitual ? 'Prov: '+f.proveedor_habitual : ''}
+          </div>
+        </div>
+        <div class="gauge-wrap"><div class="gauge-fill ${bajo?'low':''}" style="width:${pct}%"></div></div>
+      </div>`;
+  }).join('');
+
+  document.getElementById('fungibles-lista').innerHTML = items || '<div class="empty">Sin fungibles que coincidan con el filtro.</div>';
+}
+
+async function cargarHistoricoFungibles(){
+  const cont = document.getElementById('sub-historico-fungibles');
+  const { data, error } = await db
+    .from('movimientos_fungibles')
+    .select('id, tipo, cantidad, timestamp, fungibles(unidad_medida, especificacion, tipos_equipo(nombre)), usuarios(nombre_completo)')
+    .order('timestamp', { ascending: false })
+    .limit(200);
+
+  if(error){ cont.innerHTML = `<div class="empty">Error al cargar histórico: ${error.message}</div>`; return; }
+
+  const filas = (data||[]).map(m => {
+    const nombreFungible = [m.fungibles?.tipos_equipo?.nombre || 'Fungible', m.fungibles?.especificacion].filter(Boolean).join(' — ');
+    return `
+    <tr>
+      <td style="font-size:11px;color:var(--muted);">${new Date(m.timestamp).toLocaleString('es-ES')}</td>
+      <td>${m.usuarios?.nombre_completo || '—'}</td>
+      <td>${nombreFungible}</td>
+      <td>${m.tipo === 'consumo' ? 'Consumo' : 'Reposición'}</td>
+      <td>${m.cantidad} ${m.fungibles?.unidad_medida || ''}</td>
+    </tr>`;
+  }).join('');
+
+  cont.innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:8px;">
+      <div style="color:var(--muted);font-size:12px;">Mostrando los últimos ${(data||[]).length} movimientos</div>
+      <button class="btn secondary" onclick="borrarHistoricoFungibles()">Borrar histórico antiguo</button>
+    </div>
+    <div style="overflow-x:auto;">
+      <table class="inv">
+        <tr><th>Fecha</th><th>Técnico</th><th>Fungible</th><th>Tipo</th><th>Cantidad</th></tr>
+        ${filas || '<tr><td colspan="5" class="empty">Sin movimientos registrados.</td></tr>'}
+      </table>
+    </div>`;
+}
+
+async function borrarHistoricoFungibles(){
+  const dias = prompt('¿Borrar movimientos de fungibles anteriores a cuántos días? (ej. 90)');
+  const n = parseInt(dias);
+  if(isNaN(n) || n <= 0) return;
+  if(!confirm(`¿Confirmas borrar el histórico de fungibles anterior a ${n} días? Esta acción no se puede deshacer.`)) return;
+
+  const fechaLimite = new Date(Date.now() - n*86400000).toISOString();
+  const { error } = await db.from('movimientos_fungibles').delete().lt('timestamp', fechaLimite);
+  if(error){ mostrarToast('Error al borrar histórico: ' + error.message); return; }
+  mostrarToast('Histórico antiguo eliminado.');
+  cargarHistoricoFungibles();
+}
+
+// ------------------------------------------------------------
+// GESTIÓN DE USUARIOS
+// ------------------------------------------------------------
+async function cargarUsuarios(){
+  const { data, error } = await db.from('usuarios')
+    .select('id, nombre_completo, email, rol, telefono, activo, codigo_invitacion, telegram_chat_id')
+    .order('nombre_completo');
+  if(error){ document.getElementById('usuarios-lista').innerHTML = `<div class="empty">Error: ${error.message}</div>`; return; }
+
+  const filas = (data||[]).map(u => {
+    const estadoBadge = u.activo !== false
+      ? '<span class="badge ok">Activo</span>'
+      : '<span class="badge bad">Inactivo</span>';
+    const telegramBadge = u.telegram_chat_id
+      ? '<span class="badge info" style="font-size:10px;">TG ✓</span>'
+      : '<span class="badge warn" style="font-size:10px;">TG ✗</span>';
+    const enlaceTG = u.codigo_invitacion
+      ? `https://t.me/Traza_equipos_Cadiz_bot?start=${u.codigo_invitacion}`
+      : '';
+    const botonActivar = u.activo !== false
+      ? `<button class="btn danger" style="font-size:11px;padding:4px 8px;min-height:28px;width:auto;display:inline-block;" onclick="toggleUsuario('${u.id}',false)">Desactivar</button>`
+      : `<button class="btn primary" style="font-size:11px;padding:4px 8px;min-height:28px;width:auto;display:inline-block;" onclick="toggleUsuario('${u.id}',true)">Reactivar</button>`;
+    return `<tr style="${u.activo === false ? 'opacity:0.5;' : ''}">
+      <td><strong>${u.nombre_completo}</strong></td>
+      <td style="font-size:11px;">${u.email||'—'}</td>
+      <td>
+        <select class="search-box" style="font-size:11px;padding:4px;margin:0;min-height:28px;" onchange="cambiarRol('${u.id}',this.value)">
+          <option value="tecnico" ${u.rol==='tecnico'?'selected':''}>Técnico</option>
+          <option value="gestor" ${u.rol==='gestor'?'selected':''}>Gestor</option>
+          <option value="delegado" ${u.rol==='delegado'?'selected':''}>Delegado</option>
+        </select>
+      </td>
+      <td>${estadoBadge} ${telegramBadge}</td>
+      <td style="font-size:10px;">
+        ${enlaceTG ? `<a href="${enlaceTG}" target="_blank" title="Enlace Telegram" style="color:var(--accent);word-break:break-all;">${u.codigo_invitacion}</a>` : '—'}
+      </td>
+      <td>${botonActivar}</td>
+    </tr>`;
+  }).join('');
+
+  document.getElementById('usuarios-lista').innerHTML = `
+    <div style="overflow-x:auto;margin-top:10px;">
+      <table class="inv">
+        <tr><th>Nombre</th><th>Email</th><th>Rol</th><th>Estado</th><th>Código TG</th><th>Acción</th></tr>
+        ${filas}
+      </table>
+    </div>
+    <div style="color:var(--muted);font-size:11px;margin-top:6px;">Total: ${(data||[]).length} usuarios</div>`;
+}
+
+async function altaUsuario(){
+  const nombre = document.getElementById('usr-nombre').value.trim();
+  const email = document.getElementById('usr-email').value.trim();
+  const rol = document.getElementById('usr-rol').value;
+  const telefono = document.getElementById('usr-telefono').value.trim() || null;
+
+  if(!nombre || !email){ mostrarToast('Nombre y email son obligatorios.'); return; }
+
+  const codigo = (typeof crypto.randomUUID === 'function')
+    ? crypto.randomUUID().slice(0,8)
+    : Math.random().toString(36).slice(2,10);
+
+  // Generar contraseña temporal: Traza + 4 letras del segundo apellido + 2026!
+  const partes = nombre.trim().split(/\s+/);
+  const apellido2 = partes.length >= 3 ? partes[partes.length-1].slice(0,4) : partes[partes.length-1].slice(0,4);
+  const tempPassword = 'Traza' + apellido2.charAt(0).toUpperCase() + apellido2.slice(1).toLowerCase() + '2026!';
+
+  // Guardar sesión actual
+  const { data: sesionActual } = await db.auth.getSession();
+
+  // Crear cuenta en Supabase Auth
+  const { data: authData, error: authError } = await db.auth.signUp({
+    email: email,
+    password: tempPassword
+  });
+
+  if(authError){
+    // Restaurar sesión por si acaso
+    if(sesionActual?.session) await db.auth.setSession(sesionActual.session);
+    mostrarToast('Error al crear cuenta: ' + authError.message);
+    return;
+  }
+
+  const nuevoId = authData.user?.id;
+  if(!nuevoId){
+    if(sesionActual?.session) await db.auth.setSession(sesionActual.session);
+    mostrarToast('Error: no se obtuvo el ID del usuario creado.');
+    return;
+  }
+
+  // Restaurar sesión de Fernando (signUp puede cambiarla)
+  if(sesionActual?.session) await db.auth.setSession(sesionActual.session);
+
+  // Obtener delegación
+  const { data: deleg } = await db.from('delegaciones').select('id').limit(1).single();
+  if(!deleg){ mostrarToast('Error: no se encontró la delegación.'); return; }
+
+  // Insertar en tabla usuarios con el UUID real de Auth
+  const { error } = await db.from('usuarios').insert({
+    id: nuevoId,
+    nombre_completo: nombre, email, rol, telefono,
+    codigo_invitacion: codigo, activo: true,
+    delegacion_id: deleg.id
+  });
+  if(error){ mostrarToast('Error al crear perfil: ' + error.message); return; }
+
+  const enlaceTG = `https://t.me/Traza_equipos_Cadiz_bot?start=${codigo}`;
+  mostrarToast('Usuario creado correctamente.');
+  alert(`Usuario creado.\n\nDatos para enviarle:\n• URL: la de la app\n• Email: ${email}\n• Contraseña: ${tempPassword}\n• Telegram: ${enlaceTG}`);
+
+  ['usr-nombre','usr-email','usr-telefono'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('usr-rol').value = 'tecnico';
+  cargarUsuarios();
+}
+
+async function cambiarRol(userId, nuevoRol){
+  const { error } = await db.from('usuarios').update({ rol: nuevoRol }).eq('id', userId);
+  if(error){ mostrarToast('Error: ' + error.message); return; }
+  mostrarToast('Rol actualizado.');
+}
+
+async function toggleUsuario(userId, activar){
+  const msg = activar ? '¿Reactivar este usuario?' : '¿Desactivar este usuario? No podrá operar pero su historial se conserva.';
+  if(!confirm(msg)) return;
+  const { error } = await db.from('usuarios').update({ activo: activar }).eq('id', userId);
+  if(error){ mostrarToast('Error: ' + error.message); return; }
+  mostrarToast(activar ? 'Usuario reactivado.' : 'Usuario desactivado.');
+  cargarUsuarios();
+}
+
+function mostrarToast(msg){
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 3000);
+}
+
+// ------------------------------------------------------------
+// MI LÍNEA (unificada: equipos propios + solicitudes que me afectan)
+// ------------------------------------------------------------
+async function cargarMiLinea(){
+  const cont = document.getElementById('linea-contenido');
+  cont.innerHTML = '<div class="empty">Cargando...</div>';
+  const errores = [];
+  let html = '';
+
+  try {
+    // --- BLOQUE A: Solicitudes donde me piden equipos (soy poseedor) ---
+    const { data: dataPedir, error: errPedir } = await db.from('solicitudes')
+      .select('id, equipo_id, estado, tecnico_solicitante_id')
+      .eq('tecnico_poseedor_id', usuarioActual.id)
+      .eq('estado', 'pendiente');
+    if(errPedir) errores.push('Pedir: ' + errPedir.message);
+    const paraEntregar = dataPedir || [];
+
+    // --- BLOQUE B: Solicitudes que yo hice (soy solicitante) ---
+    const { data: dataMias, error: errMias } = await db.from('solicitudes')
+      .select('id, equipo_id, estado, fecha_solicitud, tecnico_poseedor_id')
+      .eq('tecnico_solicitante_id', usuarioActual.id)
+      .in('estado', ['pendiente','entregado']);
+    if(errMias) errores.push('Mias: ' + errMias.message);
+    const misSolicitudes = dataMias || [];
+
+    // --- BLOQUE C: Mis equipos asignados ---
+    const { data: dataMisEquipos, error: errMisEq } = await db.from('equipos')
+      .select('id, nº_serie, id_oca, estado, fecha_vencimiento_calibracion, tipo_calibracion, tipos_equipo(nombre)')
+      .eq('tecnico_actual_id', usuarioActual.id);
+    if(errMisEq) errores.push('Equipos: ' + errMisEq.message);
+    const misEquipos = dataMisEquipos || [];
+
+    // --- Cargar IDs de solicitudes que ya entregué (para diferenciar estado visual) ---
+    const { data: dataEntregados } = await db.from('solicitudes').select('equipo_id')
+      .eq('tecnico_poseedor_id', usuarioActual.id).eq('estado', 'entregado');
+    const idsEntregadosEsperando = new Set((dataEntregados||[]).map(s => s.equipo_id));
+
+    // --- Cargar datos de equipos referenciados en solicitudes (plano, sin join) ---
+    const equipoIdsSolic = [...new Set([...paraEntregar, ...misSolicitudes].map(s => s.equipo_id).filter(Boolean))];
+    let equipoMap = {};
+    if(equipoIdsSolic.length){
+      const { data: eqs } = await db.from('equipos')
+        .select('id, nº_serie, id_oca, tipos_equipo(nombre)').in('id', equipoIdsSolic);
+      (eqs||[]).forEach(e => { equipoMap[e.id] = e; });
+    }
+
+    // --- Cargar nombres de usuarios referenciados ---
+    const userIdsSolic = [...new Set([
+      ...paraEntregar.map(s => s.tecnico_solicitante_id),
+      ...misSolicitudes.map(s => s.tecnico_poseedor_id)
+    ].filter(Boolean))];
+    let userMap = {};
+    if(userIdsSolic.length){
+      const { data: users } = await db.from('usuarios').select('id, nombre_completo').in('id', userIdsSolic);
+      (users||[]).forEach(u => { userMap[u.id] = u.nombre_completo; });
+    }
+
+    // --- Cargar origen de mis equipos ---
+    const origenMiLinea = {};
+    const misEquiposIds = misEquipos.map(e => e.id);
+    if(misEquiposIds.length){
+      const { data: movs } = await db.from('movimientos')
+        .select('equipo_id, accion, timestamp, usuario_id, detalle')
+        .in('equipo_id', misEquiposIds)
+        .in('accion', ['entregado','recogida_almacen','asignado_gestor','entrega_directa_gestor'])
+        .order('timestamp', { ascending: false });
+      const movUserIds = [...new Set((movs||[]).map(m => m.usuario_id).filter(Boolean))];
+      let movUserMap = {};
+      if(movUserIds.length){
+        const { data: mus } = await db.from('usuarios').select('id, nombre_completo').in('id', movUserIds);
+        (mus||[]).forEach(u => { movUserMap[u.id] = u.nombre_completo; });
+      }
+      (movs||[]).forEach(m => {
+        if(origenMiLinea[m.equipo_id]) return;
+        const esAlmacen = ['recogida_almacen','asignado_gestor','entrega_directa_gestor'].includes(m.accion)
+          || (m.detalle && m.detalle.toLowerCase().includes('almacén'));
+        origenMiLinea[m.equipo_id] = {
+          nombre: esAlmacen ? 'Almacén' : (movUserMap[m.usuario_id] || 'Otro técnico'),
+          fecha: m.timestamp
+        };
+      });
+    }
+
+    // ============ RENDER ============
+
+    // Equipos que me piden
+    paraEntregar.forEach(s => {
+      const eq = equipoMap[s.equipo_id];
+      if(!eq) return;
+      const eqNombre = [eq.tipos_equipo?.nombre, eq.nº_serie, eq.id_oca ? `(ID: ${eq.id_oca})` : ''].filter(Boolean).join(' — ');
+      html += `
+        <div class="card">
+          <div class="card-title">Te piden: ${eqNombre}</div>
+          <div class="card-sub">Solicitado por: ${userMap[s.tecnico_solicitante_id] || 'Un compañero'}</div>
+          <div class="btn-row">
+            <button class="btn primary" onclick="marcarEntregado('${s.id}')">Entregar</button>
+            <button class="btn danger" onclick="rechazarSolicitud('${s.id}')">No puedo ahora</button>
+          </div>
+        </div>`;
+    });
+
+    // Mis solicitudes
+    misSolicitudes.forEach(s => {
+      const eq = equipoMap[s.equipo_id];
+      if(!eq) return;
+      const eqNombre = [eq.tipos_equipo?.nombre, eq.nº_serie, eq.id_oca ? `(ID: ${eq.id_oca})` : ''].filter(Boolean).join(' — ');
+      const fecha = s.fecha_solicitud ? new Date(s.fecha_solicitud).toLocaleString('es-ES', {day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}) : '';
+      if(s.estado === 'pendiente'){
+        html += `
+          <div class="card">
+            <div class="card-title">${eqNombre} <span class="badge warn">Esperando entrega</span></div>
+            <div class="card-sub">Pendiente de: <strong>${userMap[s.tecnico_poseedor_id] || 'Almacén'}</strong>${fecha ? ` · solicitado ${fecha}` : ''}</div>
+          </div>`;
+      } else if(s.estado === 'entregado'){
+        html += `
+          <div class="card">
+            <div class="card-title">${eqNombre} <span class="badge info">Entregado — confirma recepción</span></div>
+            <div class="card-sub">Entregado por: <strong>${userMap[s.tecnico_poseedor_id] || 'Almacén'}</strong></div>
+            <button class="btn primary" onclick="confirmarRecibido('${s.id}')">Recibido</button>
+          </div>`;
+      }
+    });
+
+    // Mis equipos
+    misEquipos.forEach(e => {
+      let badge = 'ok', texto = 'Disponible normal';
+      if(e.estado === 'averiado'){ badge='bad'; texto='Averiado'; }
+      else if(e.estado === 'en_calibracion'){ badge='bad'; texto='En calibración'; }
+      else if(e.estado === 'solicitud_pendiente'){
+        if(idsEntregadosEsperando.has(e.id)){ badge='info'; texto='Entregado — esperando que confirme la recepción'; }
+        else { badge='warn'; texto='Solicitud pendiente — pulsa "Entregar" arriba'; }
+      }
+      else if(e.estado === 'solicitud_bloqueada'){ badge='info'; texto='Marcado como no disponible — el Gestor está buscando alternativa'; }
+      else if(e.fecha_vencimiento_calibracion){
+        const dias = Math.ceil((new Date(e.fecha_vencimiento_calibracion) - new Date())/86400000);
+        if(dias <= 7){ badge='bad'; texto=`Calibración vence en ${dias} días`; }
+        else if(dias <= 30){ badge='warn'; texto=`Calibración vence en ${dias} días`; }
+      }
+      const origen = origenMiLinea[e.id];
+      html += `
+        <div class="card">
+          <div class="card-title">${e.tipos_equipo?.nombre || 'Equipo'} — ${e.nº_serie}</div>
+          <div class="card-sub"><span class="badge ${badge}">${texto}</span></div>
+          <div style="font-size:13px;margin:4px 0 8px;">Recibido de: <strong style="font-size:14px;">${origen?.nombre || '—'}</strong>${origen?.fecha ? ` <span style="color:var(--muted);font-size:11px;">(${new Date(origen.fecha).toLocaleDateString('es-ES')})</span>` : ''}</div>
+          <div class="btn-row">
+            <button class="btn secondary" onclick="devolverAlmacen('${e.id}')">Devolver</button>
+            <button class="btn danger" onclick="reportarAveria('${e.id}')">Avería</button>
+          </div>
+        </div>`;
+    });
+
+    if(errores.length) html += `<div class="card" style="border-left:4px solid var(--bad);font-size:12px;color:var(--bad);"><strong>Errores detectados:</strong><br>${errores.join('<br>')}</div>`;
+    if(!html) html = '<div class="empty">No tienes equipos ni solicitudes activas.</div>';
+    cont.innerHTML = html;
+  } catch(err) {
+    cont.innerHTML = `<div class="empty">Error cargando Mi línea: ${err.message || err}</div>`;
+  }
+}
+
+async function marcarEntregado(solicitudId){
+  const { error } = await db.rpc('marcar_entregado', { p_solicitud_id: solicitudId });
+  if(error){ mostrarToast('No se pudo completar la entrega.'); return; }
+  mostrarToast('Entrega registrada.');
+  cargarMiLinea();
+}
+
+async function rechazarSolicitud(solicitudId){
+  const motivo = prompt('¿Por qué no puedes entregarlo ahora? (se lo indicaremos al Gestor)');
+  if(!motivo) return;
+  const { error } = await db.rpc('rechazar_solicitud', { p_solicitud_id: solicitudId, p_motivo: motivo });
+  if(error){ mostrarToast('No se pudo registrar el rechazo: ' + error.message); return; }
+  mostrarToast('Aviso enviado al Gestor.');
+  cargarMiLinea();
+}
+
+async function confirmarRecibido(solicitudId){
+  const { error } = await db.rpc('confirmar_recibido', { p_solicitud_id: solicitudId });
+  if(error){ mostrarToast('No se pudo confirmar la recepción.'); return; }
+  mostrarToast('Recepción confirmada.');
+  cargarMiLinea();
+}
+
+async function devolverAlmacen(equipoId){
+  if(!confirm('¿Confirmas la devolución de este equipo a almacén?')) return;
+  const { error } = await db.rpc('devolver_a_almacen', { p_equipo_id: equipoId });
+  if(error){ mostrarToast('No se pudo devolver el equipo.'); return; }
+  mostrarToast('Equipo devuelto a almacén.');
+  cargarMiLinea();
+}
+
+async function reportarAveria(equipoId){
+  const detalle = prompt('Describe brevemente la avería:');
+  if(!detalle) return;
+
+  const { data: equipoActual, error: errLectura } = await db.from('equipos')
+    .select('observaciones').eq('id', equipoId).single();
+  if(errLectura){ mostrarToast('Error al leer el equipo: ' + errLectura.message); return; }
+
+  const fecha = new Date().toLocaleDateString('es-ES');
+  const notaAveria = `[Avería ${fecha}] ${detalle}`;
+  const observacionesNuevas = equipoActual?.observaciones ? `${equipoActual.observaciones}\n${notaAveria}` : notaAveria;
+
+  const { error: errEquipo } = await db.from('equipos')
+    .update({ estado: 'averiado', observaciones: observacionesNuevas })
+    .eq('id', equipoId);
+  if(errEquipo){ mostrarToast('Error al reportar avería: ' + errEquipo.message); return; }
+
+  const { error: errMov } = await db.from('movimientos').insert({
+    equipo_id: equipoId, usuario_id: usuarioActual.id, accion: 'averia', detalle
+  });
+  if(errMov) console.error('Error registrando movimiento de avería:', errMov.message);
+
+  mostrarToast('Avería reportada al Gestor.');
+  cargarMiLinea();
+}
+
+// ------------------------------------------------------------
+// BUSCAR EQUIPO (sin exponer poseedor hasta seleccionar instancia)
+// ------------------------------------------------------------
+let buscarTimeout;
+async function buscarEquipos(){
+  clearTimeout(buscarTimeout);
+  buscarTimeout = setTimeout(async () => {
+    const termino = (document.getElementById('buscar-input')?.value?.trim()||'');
+    document.getElementById('detalle-equipo').innerHTML = '';
+    if(termino.length < 3){ document.getElementById('buscar-resultados').innerHTML = ''; return; }
+    document.getElementById('buscar-categoria').value = '';
+
+    const { data, error } = await db.rpc('buscar_equipos_por_tipo', { termino });
+    if(error || !data || data.length === 0){
+      document.getElementById('buscar-resultados').innerHTML = '<div class="empty">Sin resultados.</div>';
+      return;
+    }
+    await renderResultadosBusqueda(data);
+  }, 300);
+}
+
+let busquedaEquiposCache = [];
+
+async function cargarCategoriasBusqueda(){
+  const { data } = await db.from('equipos')
+    .select('id, nº_serie, id_oca, estado, marca, modelo, ubicacion_texto, tipos_equipo(nombre), usuarios(nombre_completo)')
+    .neq('estado','baja')
+    .order('nº_serie');
+  busquedaEquiposCache = data || [];
+
+  const categorias = [...new Set(busquedaEquiposCache.map(e => (e.tipos_equipo?.nombre||'').trim().split(' ')[0].toUpperCase()).filter(Boolean))].sort();
+  const sel = document.getElementById('buscar-categoria');
+  sel.innerHTML = '<option value="">— Elige una categoría —</option>' +
+    categorias.map(c => `<option value="${c}">${c}</option>`).join('');
+}
+
+function buscarPorCategoria(){
+  const categoria = document.getElementById('buscar-categoria').value;
+  document.getElementById('detalle-equipo').innerHTML = '';
+  const cont = document.getElementById('buscar-resultados');
+  if(!categoria){ cont.innerHTML = ''; return; }
+
+  const filtrados = busquedaEquiposCache.filter(e =>
+    (e.tipos_equipo?.nombre||'').trim().toUpperCase().startsWith(categoria)
+  );
+
+  if(filtrados.length === 0){
+    cont.innerHTML = '<div class="empty">Sin equipos en esta categoría.</div>';
+    return;
+  }
+
+  cont.innerHTML = '<div class="card">' + filtrados.map(eq => {
+    const nombre = eq.tipos_equipo?.nombre || 'Equipo';
+    const poseedor = eq.usuarios?.nombre_completo;
+    let badge = 'info', texto = poseedor || 'Asignado';
+    if(eq.estado === 'disponible'){
+      badge = 'ok';
+      texto = (eq.ubicacion_texto && eq.ubicacion_texto.toUpperCase() !== 'ALMACEN' && eq.ubicacion_texto !== 'Almacén') ? eq.ubicacion_texto : 'Almacén';
+    }
+    else if(eq.estado === 'solicitud_pendiente'){ badge='warn'; texto = (poseedor || 'Asignado') + ' (solicitud pendiente)'; }
+    else if(eq.estado === 'solicitud_bloqueada'){ badge='bad'; texto = (poseedor || 'Asignado') + ' (bloqueada)'; }
+    const marcaInfo = eq.marca ? ' · ' + eq.marca : '';
+    const modeloInfo = eq.modelo ? ' · ' + eq.modelo : '';
+    const idInfo = eq.id_oca ? ` · ID: ${eq.id_oca}` : '';
+    return `<div class="result-row" onclick="verDetalle('${eq.id}','${(eq.nº_serie||'').replace(/'/g,'')}','${eq.estado}','${nombre.replace(/'/g,'')}')">
+              <div><strong>${nombre}</strong>${marcaInfo}${modeloInfo}<br><span style="color:var(--muted);font-size:12px">${eq.nº_serie}${idInfo}</span></div>
+              <span class="badge ${badge}">${texto}</span>
+            </div>`;
+  }).join('') + '</div>';
+}
+
+function verDetalle(equipoId, nSerie, estado, nombreTipo){
+  const cont = document.getElementById('detalle-equipo');
+  const titulo = nombreTipo ? nombreTipo + ' — ' + nSerie : nSerie;
+
+  // Buscar poseedor en el cache ya cargado
+  const eqCache = busquedaEquiposCache.find(e => e.id === equipoId);
+  const poseedor = eqCache?.usuarios?.nombre_completo || null;
+
+  if(estado === 'solicitud_pendiente' || estado === 'solicitud_bloqueada'){
+    cont.innerHTML = `
+      <div class="card">
+        <div class="card-title">${titulo}</div>
+        <div class="poseedor-info">Lo tiene: <strong>${poseedor || 'Asignado'}</strong></div>
+        <div class="card-sub">Ya hay una solicitud en curso. Espera a que se resuelva.</div>
+      </div>`;
+  } else if(estado !== 'disponible'){
+    cont.innerHTML = `
+      <div class="card">
+        <div class="card-title">${titulo}</div>
+        <div class="poseedor-info">Lo tiene: <strong>${poseedor || 'Asignado'}</strong></div>
+        <button class="btn primary" onclick="solicitarEquipo('${equipoId}')">Solicitar equipo</button>
+      </div>`;
+  } else {
+    cont.innerHTML = `
+      <div class="card">
+        <div class="card-title">${titulo} <span class="badge ok">Disponible en almacén</span></div>
+        <button class="btn primary" onclick="solicitarAlmacen('${equipoId}')">Solicitar al almacén</button>
+      </div>`;
+  }
+}
+
+async function solicitarEquipo(equipoId){
+  const { error } = await db.rpc('crear_solicitud', { p_equipo_id: equipoId });
+  if(error){ mostrarToast('No se pudo crear la solicitud: ' + error.message); return; }
+  mostrarToast('Solicitud enviada al técnico.');
+  document.getElementById('detalle-equipo').innerHTML = '';
+  document.getElementById('buscar-resultados').innerHTML = '';
+  cambiarTab('linea');
+}
+
+async function solicitarAlmacen(equipoId){
+  const { error } = await db.rpc('solicitar_equipo_almacen', { p_equipo_id: equipoId });
+  if(error){ mostrarToast('No se pudo crear la solicitud: ' + error.message); return; }
+  mostrarToast('Solicitud enviada al gestor. Recibirás el equipo cuando lo entreguen.');
+  document.getElementById('detalle-equipo').innerHTML = '';
+  document.getElementById('buscar-resultados').innerHTML = '';
+  cambiarTab('linea');
+}
+
+// ------------------------------------------------------------
+// FUNGIBLES — consumo rápido
+// ------------------------------------------------------------
+async function abrirConsumoFungible(){
+  const { data: fungibles, error } = await db.from('fungibles').select('id, unidad_medida, stock_actual, tipos_equipo(nombre)').order('id');
+  if(error){ mostrarToast('Error al cargar fungibles: ' + error.message); return; }
+  if(!fungibles || fungibles.length === 0){ mostrarToast('No hay fungibles configurados.'); return; }
+
+  window._fungiblesDisponibles = fungibles;
+  window._fungibleSeleccionado = null;
+
+  const opciones = fungibles.map(f => `
+    <div class="fungible-opcion" onclick="seleccionarFungibleConsumo('${f.id}')" id="fg-opcion-${f.id}">
+      <strong>${f.tipos_equipo?.nombre || 'Fungible'}</strong>
+      <div style="font-size:12px;color:var(--muted);">Stock actual: ${f.stock_actual} ${f.unidad_medida}</div>
+    </div>`).join('');
+
+  document.getElementById('modal-root').innerHTML = `
+    <div class="modal-overlay" onclick="if(event.target===this) cerrarModalFungible()">
+      <div class="modal-box">
+        <h3>¿Qué fungible has consumido?</h3>
+        <div id="fg-lista-opciones">${opciones}</div>
+        <div id="fg-cantidad-box" style="display:none;margin-top:10px;">
+          <label style="font-size:12px;color:var(--muted);">Cantidad consumida (<span id="fg-unidad"></span>)</label>
+          <input type="number" step="0.01" min="0.01" class="search-box" id="fg-cantidad-input" placeholder="Ej. 2">
+          <button class="btn primary" style="margin-top:10px;width:100%;" onclick="confirmarConsumoFungible()">Registrar consumo</button>
+        </div>
+        <button class="btn" style="margin-top:10px;width:100%;" onclick="cerrarModalFungible()">Cancelar</button>
+      </div>
+    </div>`;
+}
+
+function seleccionarFungibleConsumo(fungibleId){
+  document.querySelectorAll('.fungible-opcion').forEach(el => el.classList.remove('selected'));
+  document.getElementById('fg-opcion-'+fungibleId).classList.add('selected');
+  const f = (window._fungiblesDisponibles||[]).find(x => String(x.id) === String(fungibleId));
+  window._fungibleSeleccionado = f;
+  document.getElementById('fg-unidad').textContent = f?.unidad_medida || '';
+  document.getElementById('fg-cantidad-box').style.display = 'block';
+  document.getElementById('fg-cantidad-input').focus();
+}
+
+async function confirmarConsumoFungible(){
+  const f = window._fungibleSeleccionado;
+  const cantidad = parseFloat(document.getElementById('fg-cantidad-input').value);
+  if(!f || isNaN(cantidad) || cantidad <= 0){ mostrarToast('Indica una cantidad válida.'); return; }
+
+  const { data: cruzaUmbral, error } = await db.rpc('registrar_consumo_fungible', {
+    p_fungible_id: f.id, p_cantidad: cantidad
+  });
+  if(error){ mostrarToast('Error al registrar consumo: ' + error.message); return; }
+  mostrarToast(cruzaUmbral ? 'Consumo registrado. Aviso de stock bajo enviado al Gestor.' : 'Consumo registrado.');
+  cerrarModalFungible();
+}
+
+function cerrarModalFungible(){
+  document.getElementById('modal-root').innerHTML = '';
+  window._fungiblesDisponibles = null;
+  window._fungibleSeleccionado = null;
+}
+</script>
+<div id="modal-root"></div>
+</body>
+</html>
