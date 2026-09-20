@@ -1494,10 +1494,14 @@ async function altaUsuario(){
         const r = Math.random()*16|0; return (c==='x' ? r : (r&0x3|0x8)).toString(16);
       });
 
+  const { data: deleg } = await db.from('delegaciones').select('id').limit(1).single();
+  if(!deleg){ mostrarToast('Error: no se encontró la delegación.'); return; }
+
   const { error } = await db.from('usuarios').insert({
     id: nuevoId,
     nombre_completo: nombre, email, rol, telefono,
-    codigo_invitacion: codigo, activo: true
+    codigo_invitacion: codigo, activo: true,
+    delegacion_id: deleg.id
   });
   if(error){ mostrarToast('Error al crear usuario: ' + error.message); return; }
 
