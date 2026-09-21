@@ -875,9 +875,13 @@ async function cargarSolicitudesVivo(){
          <button class="btn secondary" style="margin-top:6px;width:100%;font-size:12px;padding:6px;"
            onclick="enviarRecordatorio('${s.id}','${s.equipo_id}','${nombreConfirmador.replace(/'/g,'')}')">Enviar recordatorio</button>`
       : '';
+    const botonCancelar = (s.estado === 'pendiente' || s.estado === 'entregado')
+      ? `<button class="btn danger" style="margin-top:6px;width:100%;font-size:11px;padding:5px;"
+           onclick="cancelarSolicitudGestor('${s.id}','${s.equipo_id}')">Cancelar solicitud</button>`
+      : '';
     return `<div class="kanban-card">
       <strong>${s.equipos?.tipos_equipo?.nombre||''}</strong><br>
-      <span style="color:var(--muted);font-size:11px">${s.equipos?.nº_serie||'—'}</span>
+      <span style="color:var(--muted);font-size:11px">${s.equipos?.nº_serie||'—'}${s.equipos?.id_oca ? ' · ID: '+s.equipos.id_oca : ''}</span>
       <div style="margin-top:6px;font-size:11px;line-height:1.5;">
         <div>👤 Solicita: <strong>${s.solicitante?.nombre_completo || '—'}</strong></div>
         <div>➡️ A: <strong>${destino}</strong></div>
@@ -888,6 +892,7 @@ async function cargarSolicitudesVivo(){
         ${avisoSinConfirmar}
       </div>
       ${botonAlternativa}
+      ${botonCancelar}
     </div>`;
   };
 
@@ -1678,13 +1683,17 @@ async function cargarMiLinea(){
           <div class="card">
             <div class="card-title">${eqNombre} <span class="badge warn">Esperando entrega</span></div>
             <div class="card-sub">Pendiente de: <strong>${userMap[s.tecnico_poseedor_id] || 'Almacén'}</strong>${fecha ? ` · solicitado ${fecha}` : ''}</div>
+            <button class="btn danger" style="font-size:12px;padding:6px;" onclick="cancelarSolicitud('${s.id}','${s.equipo_id}')">Cancelar solicitud</button>
           </div>`;
       } else if(s.estado === 'entregado'){
         html += `
           <div class="card">
             <div class="card-title">${eqNombre} <span class="badge info">Entregado — confirma recepción</span></div>
             <div class="card-sub">Entregado por: <strong>${userMap[s.tecnico_poseedor_id] || 'Almacén'}</strong></div>
-            <button class="btn primary" onclick="confirmarRecibido('${s.id}')">Recibido</button>
+            <div class="btn-row">
+              <button class="btn primary" onclick="confirmarRecibido('${s.id}')">Recibido</button>
+              <button class="btn danger" onclick="cancelarSolicitud('${s.id}','${s.equipo_id}')">Cancelar</button>
+            </div>
           </div>`;
       }
     });
@@ -1707,7 +1716,7 @@ async function cargarMiLinea(){
       const origen = origenMiLinea[e.id];
       html += `
         <div class="card">
-          <div class="card-title">${e.tipos_equipo?.nombre || 'Equipo'} — ${e.nº_serie}</div>
+          <div class="card-title">${e.tipos_equipo?.nombre || 'Equipo'} — ${e.nº_serie}${e.id_oca ? ' — (ID: '+e.id_oca+')' : ''}</div>
           <div class="card-sub"><span class="badge ${badge}">${texto}</span></div>
           <div style="font-size:13px;margin:4px 0 8px;">Recibido de: <strong style="font-size:14px;">${origen?.nombre || '—'}</strong>${origen?.fecha ? ` <span style="color:var(--muted);font-size:11px;">(${new Date(origen.fecha).toLocaleDateString('es-ES')})</span>` : ''}</div>
           <div class="btn-row">
@@ -1739,6 +1748,22 @@ async function rechazarSolicitud(solicitudId){
   if(error){ mostrarToast('No se pudo registrar el rechazo: ' + error.message); return; }
   mostrarToast('Aviso enviado al Gestor.');
   cargarMiLinea();
+}
+
+async function cancelarSolicitud(solicitudId, equipoId){
+  if(!confirm('¿Cancelar esta solicitud? El equipo volverá a su estado anterior.')) return;
+  const { error } = await db.rpc('cancelar_solicitud_tecnico', { p_solicitud_id: solicitudId });
+  if(error){ mostrarToast('Error al cancelar: ' + error.message); return; }
+  mostrarToast('Solicitud cancelada.');
+  cargarMiLinea();
+}
+
+async function cancelarSolicitudGestor(solicitudId, equipoId){
+  if(!confirm('¿Cancelar esta solicitud desde el Panel Gestor? El equipo volverá a estar disponible.')) return;
+  const { error } = await db.rpc('cancelar_solicitud_tecnico', { p_solicitud_id: solicitudId });
+  if(error){ mostrarToast('Error al cancelar: ' + error.message); return; }
+  mostrarToast('Solicitud cancelada.');
+  cargarSolicitudesVivo();
 }
 
 async function confirmarRecibido(solicitudId){
