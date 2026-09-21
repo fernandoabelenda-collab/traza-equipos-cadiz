@@ -1020,6 +1020,7 @@ async function enviarRecordatorioEntrega(solicitudId, equipoId, nombrePoseedor){
 
 let inventarioDataCompleta = [];
 let inventarioOrigenMap = {};
+let inventarioDevolucionMap = {};
 let inventarioEntregadosEsperando = new Set();
 
 async function cargarInventario(){
@@ -1043,6 +1044,26 @@ async function cargarInventario(){
     .map(e => e.id);
 
   inventarioOrigenMap = {};
+  inventarioDevolucionMap = {};
+
+  // Cargar último que devolvió cada equipo
+  const { data: devMov } = await db.from('movimientos')
+    .select('equipo_id, timestamp, usuario_id')
+    .eq('accion', 'devolucion_almacen')
+    .order('timestamp', { ascending: false });
+  const devUserIds = [...new Set((devMov||[]).map(m => m.usuario_id).filter(Boolean))];
+  let devUserMap = {};
+  if(devUserIds.length){
+    const { data: dus } = await db.from('usuarios').select('id, nombre_completo').in('id', devUserIds);
+    (dus||[]).forEach(u => { devUserMap[u.id] = u.nombre_completo; });
+  }
+  (devMov||[]).forEach(m => {
+    if(inventarioDevolucionMap[m.equipo_id]) return;
+    inventarioDevolucionMap[m.equipo_id] = {
+      nombre: devUserMap[m.usuario_id] || 'Desconocido',
+      fecha: m.timestamp
+    };
+  });
   if(idsAsignados.length){
     const { data: movs, error: errMovs } = await db
       .from('movimientos')
@@ -1093,7 +1114,7 @@ async function cargarInventario(){
     <div id="inventario-edicion"></div>
     <div style="overflow-x:auto;">
       <table class="inv" id="tabla-inventario">
-        <tr><th>Nº Serie</th><th>ID OCA</th><th>Tipo</th><th>Marca</th><th>Modelo</th><th>Estado</th><th>Recibido de</th><th>Fecha recibido</th><th>Observaciones</th><th>Venc. Calib.</th></tr>
+        <tr><th>Nº Serie</th><th>ID OCA</th><th>Tipo</th><th>Marca</th><th>Modelo</th><th>Estado</th><th>Recibido de</th><th>Fecha recibido</th><th>Último devolvió</th><th>Fecha devolución</th><th>Observaciones</th><th>Venc. Calib.</th></tr>
       </table>
     </div>
     <div style="color:var(--muted);font-size:12px;margin-top:8px;" id="inventario-total"></div>`;
@@ -1151,14 +1172,22 @@ function renderTablaInventario(lista){
         const o = inventarioOrigenMap[e.id];
         return o?.fecha ? new Date(o.fecha).toLocaleDateString('es-ES') : '—';
       })()}</td>
+      <td style="font-size:12px;">${(() => {
+        const d = inventarioDevolucionMap[e.id];
+        return d ? `<strong>${d.nombre}</strong>` : '—';
+      })()}</td>
+      <td style="font-size:11px;color:var(--muted);">${(() => {
+        const d = inventarioDevolucionMap[e.id];
+        return d?.fecha ? new Date(d.fecha).toLocaleDateString('es-ES') : '—';
+      })()}</td>
       <td style="max-width:160px;font-size:12px;">${e.observaciones||'—'}</td>
       <td style="font-size:11px;color:var(--muted);">${e.fecha_vencimiento_calibracion||'—'}</td>
     </tr>`;
   }).join('');
 
   document.getElementById('tabla-inventario').innerHTML = `
-    <tr><th>Nº Serie</th><th>ID OCA</th><th>Tipo</th><th>Marca</th><th>Modelo</th><th>Estado</th><th>Recibido de</th><th>Fecha recibido</th><th>Observaciones</th><th>Venc. Calib.</th></tr>
-    ${filas || '<tr><td colspan="10" class="empty">Sin equipos que coincidan con el filtro.</td></tr>'}`;
+    <tr><th>Nº Serie</th><th>ID OCA</th><th>Tipo</th><th>Marca</th><th>Modelo</th><th>Estado</th><th>Recibido de</th><th>Fecha recibido</th><th>Último devolvió</th><th>Fecha devolución</th><th>Observaciones</th><th>Venc. Calib.</th></tr>
+    ${filas || '<tr><td colspan="12" class="empty">Sin equipos que coincidan con el filtro.</td></tr>'}`;
   document.getElementById('inventario-total').textContent = `Total: ${(lista||[]).length} equipos`;
 }
 
@@ -1725,6 +1754,45 @@ async function cargarMiLinea(){
           </div>
         </div>`;
     });
+
+    // --- BLOQUE D: Devoluciones recientes (últimos 2 meses) ---
+    try {
+      const hace2meses = new Date(Date.now() - 60*86400000).toISOString();
+      const { data: devoluciones } = await db.from('movimientos')
+        .select('equipo_id, timestamp, detalle')
+        .eq('usuario_id', usuarioActual.id)
+        .eq('accion', 'devolucion_almacen')
+        .gte('timestamp', hace2meses)
+        .order('timestamp', { ascending: false });
+
+      if(devoluciones && devoluciones.length > 0){
+        const devEquipoIds = [...new Set(devoluciones.map(d => d.equipo_id))];
+        const { data: devEquipos } = await db.from('equipos')
+          .select('id, nº_serie, id_oca, tipos_equipo(nombre)')
+          .in('id', devEquipoIds);
+        const devEqMap = {};
+        (devEquipos||[]).forEach(e => { devEqMap[e.id] = e; });
+
+        html += `
+          <div class="card" style="margin-top:14px;border-left:4px solid var(--muted);">
+            <div class="card-title" style="font-size:13px;color:var(--muted);">Devoluciones recientes (últimos 2 meses)</div>
+            <div style="overflow-x:auto;">
+              <table class="inv" style="margin-top:6px;">
+                <tr><th>Equipo</th><th>Nº Serie</th><th>ID OCA</th><th>Fecha devolución</th></tr>
+                ${devoluciones.map(d => {
+                  const eq = devEqMap[d.equipo_id];
+                  return `<tr>
+                    <td>${eq?.tipos_equipo?.nombre||'—'}</td>
+                    <td>${eq?.nº_serie||'—'}</td>
+                    <td>${eq?.id_oca||'—'}</td>
+                    <td>${new Date(d.timestamp).toLocaleString('es-ES',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'})}</td>
+                  </tr>`;
+                }).join('')}
+              </table>
+            </div>
+          </div>`;
+      }
+    } catch(e){ console.error('Error devoluciones:', e); }
 
     if(errores.length) html += `<div class="card" style="border-left:4px solid var(--bad);font-size:12px;color:var(--bad);"><strong>Errores detectados:</strong><br>${errores.join('<br>')}</div>`;
     if(!html) html = '<div class="empty">No tienes equipos ni solicitudes activas.</div>';
