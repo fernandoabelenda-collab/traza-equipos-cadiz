@@ -993,16 +993,9 @@ async function enviarRecordatorio(solicitudId, equipoId, nombreReceptor){
 
 async function entregarDesdeAlmacen(solicitudId, equipoId){
   if(!confirm('¿Confirmas que entregas este equipo del almacén al técnico solicitante?')) return;
-  const { error: errSol } = await db.from('solicitudes')
-    .update({ estado: 'entregado', fecha_entrega: new Date().toISOString() })
-    .eq('id', solicitudId);
-  if(errSol){ mostrarToast('Error: ' + errSol.message); return; }
-
-  await db.from('movimientos').insert({
-    equipo_id: equipoId, solicitud_id: solicitudId, usuario_id: usuarioActual.id,
-    accion: 'entregado', detalle: 'Entregado desde almacén por gestor'
-  });
-  mostrarToast('Equipo entregado. El técnico debe confirmar la recepción.');
+  const { error } = await db.rpc('entregar_desde_almacen', { p_solicitud_id: solicitudId });
+  if(error){ mostrarToast('Error: ' + error.message); return; }
+  mostrarToast('Equipo entregado. El técnico recibirá un aviso por Telegram.');
   cargarSolicitudesVivo();
 }
 
