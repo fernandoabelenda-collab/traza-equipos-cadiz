@@ -759,7 +759,7 @@ async function cargarEdicionFungible(){
   if(!fungibleId){ cont.innerHTML = ''; return; }
 
   const { data: f, error } = await db.from('fungibles')
-    .select('id, unidad_medida, especificacion, punto_pedido, proveedor_habitual, tipos_equipo(nombre)')
+    .select('id, stock_actual, unidad_medida, especificacion, punto_pedido, proveedor_habitual, tipos_equipo(nombre)')
     .eq('id', fungibleId).single();
   if(error){ cont.innerHTML = `<div class="empty">Error al cargar: ${error.message}</div>`; return; }
 
@@ -772,16 +772,24 @@ async function cargarEdicionFungible(){
       <div class="form-section">
         <div class="form-section-title">Stock y proveedor</div>
         <div class="field-grid">
+          <div class="field"><label>Stock actual (${f.unidad_medida||'uds'})</label><input type="number" class="search-box" id="fged-stock" value="${f.stock_actual||0}" min="0" step="0.1"></div>
           <div class="field"><label>Punto de pedido</label><input type="number" class="search-box" id="fged-pedido" value="${f.punto_pedido||0}" min="0" step="0.1"></div>
-          <div class="field"><label>Proveedor habitual</label><input type="text" class="search-box" id="fged-proveedor" value="${f.proveedor_habitual||''}"></div>
         </div>
+        <div class="field"><label>Proveedor habitual</label><input type="text" class="search-box" id="fged-proveedor" value="${f.proveedor_habitual||''}"></div>
       </div>
       <button class="btn primary" onclick="guardarEdicionFungible('${f.id}')">Guardar cambios</button>
     </div>`;
 }
 
 async function guardarEdicionFungible(fungibleId){
+  const nuevoStock = parseFloat(document.getElementById('fged-stock').value) || 0;
+
+  // Comprobar si el stock cambió para registrar el ajuste
+  const { data: actual } = await db.from('fungibles').select('stock_actual').eq('id', fungibleId).single();
+  const stockAnterior = actual?.stock_actual || 0;
+
   const updates = {
+    stock_actual: nuevoStock,
     especificacion: document.getElementById('fged-especificacion').value.trim() || null,
     unidad_medida: document.getElementById('fged-unidad').value.trim(),
     punto_pedido: parseFloat(document.getElementById('fged-pedido').value) || 0,
@@ -789,6 +797,16 @@ async function guardarEdicionFungible(fungibleId){
   };
   const { error } = await db.from('fungibles').update(updates).eq('id', fungibleId);
   if(error){ mostrarToast('Error al guardar: ' + error.message); return; }
+
+  // Registrar ajuste manual si el stock cambió
+  if(nuevoStock !== stockAnterior){
+    const diferencia = nuevoStock - stockAnterior;
+    await db.from('movimientos_fungibles').insert({
+      fungible_id: fungibleId, usuario_id: usuarioActual.id,
+      tipo: 'ajuste_manual', cantidad: Math.abs(diferencia)
+    });
+  }
+
   mostrarToast('Fungible actualizado.');
   cargarSelectorFungibles('fg-editar-sel');
   cargarEdicionFungible();
