@@ -2023,7 +2023,7 @@ async function solicitarAlmacen(equipoId){
 // FUNGIBLES — consumo rápido
 // ------------------------------------------------------------
 async function abrirConsumoFungible(){
-  const { data: fungibles, error } = await db.from('fungibles').select('id, unidad_medida, stock_actual, tipos_equipo(nombre)').order('id');
+  const { data: fungibles, error } = await db.from('fungibles').select('id, especificacion, unidad_medida, stock_actual, tipos_equipo(nombre)').order('id');
   if(error){ mostrarToast('Error al cargar fungibles: ' + error.message); return; }
   if(!fungibles || fungibles.length === 0){ mostrarToast('No hay fungibles configurados.'); return; }
 
@@ -2032,7 +2032,7 @@ async function abrirConsumoFungible(){
 
   const opciones = fungibles.map(f => `
     <div class="fungible-opcion" onclick="seleccionarFungibleConsumo('${f.id}')" id="fg-opcion-${f.id}">
-      <strong>${f.tipos_equipo?.nombre || 'Fungible'}</strong>
+      <strong>${f.tipos_equipo?.nombre || 'Fungible'}${f.especificacion ? ' — ' + f.especificacion : ''}</strong>
       <div style="font-size:12px;color:var(--muted);">Stock actual: ${f.stock_actual} ${f.unidad_medida}</div>
     </div>`).join('');
 
