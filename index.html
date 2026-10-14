@@ -1429,7 +1429,7 @@ async function cargarHistoricoFungibles(){
   const cont = document.getElementById('sub-historico-fungibles');
   const { data, error } = await db
     .from('movimientos_fungibles')
-    .select('id, tipo, cantidad, timestamp, fungibles(unidad_medida, especificacion, tipos_equipo(nombre)), usuarios(nombre_completo)')
+    .select('id, tipo, cantidad, timestamp, centro_id, fungibles(unidad_medida, especificacion, tipos_equipo(nombre)), usuarios(nombre_completo), centros_trabajo(nombre)')
     .order('timestamp', { ascending: false })
     .limit(200);
 
@@ -1442,7 +1442,10 @@ async function cargarHistoricoFungibles(){
       <td style="font-size:11px;color:var(--muted);">${new Date(m.timestamp).toLocaleString('es-ES')}</td>
       <td>${m.usuarios?.nombre_completo || '—'}</td>
       <td>${nombreFungible}</td>
-      <td>${m.tipo === 'consumo' ? 'Consumo' : 'Reposición'}</td>
+      <td>${m.tipo === 'consumo' ? 'Consumo propio'
+          : m.tipo === 'envio_centro' ? 'Envío a centro' + (m.centros_trabajo?.nombre ? ' → ' + m.centros_trabajo.nombre : '')
+          : m.tipo === 'consumo_centro' ? 'Uso en centro' + (m.centros_trabajo?.nombre ? ' (' + m.centros_trabajo.nombre + ')' : '')
+          : 'Reposición'}</td>
       <td>${m.cantidad} ${m.fungibles?.unidad_medida || ''}</td>
     </tr>`;
   }).join('');
@@ -2020,35 +2023,126 @@ async function solicitarAlmacen(equipoId){
 }
 
 // ------------------------------------------------------------
-// FUNGIBLES — consumo rápido
+// FUNGIBLES — consumo rápido (multi-ubicación)
 // ------------------------------------------------------------
 async function abrirConsumoFungible(){
-  const { data: fungibles, error } = await db.from('fungibles').select('id, especificacion, unidad_medida, stock_actual, tipos_equipo(nombre)').order('id');
-  if(error){ mostrarToast('Error al cargar fungibles: ' + error.message); return; }
-  if(!fungibles || fungibles.length === 0){ mostrarToast('No hay fungibles configurados.'); return; }
+  // Cargar centros y fungibles en paralelo
+  const [resCentros, resFungibles] = await Promise.all([
+    db.from('centros_trabajo').select('id, nombre').eq('activo', true).order('nombre'),
+    db.from('fungibles').select('id, especificacion, unidad_medida, stock_actual, tipos_equipo(nombre)').order('id')
+  ]);
+  if(resFungibles.error){ mostrarToast('Error al cargar fungibles: ' + resFungibles.error.message); return; }
+  if(!resFungibles.data || resFungibles.data.length === 0){ mostrarToast('No hay fungibles configurados.'); return; }
 
-  window._fungiblesDisponibles = fungibles;
+  window._fungiblesDisponibles = resFungibles.data;
+  window._centrosDisponibles = resCentros.data || [];
   window._fungibleSeleccionado = null;
+  window._consumoOrigen = null;    // 'almacen' o centro_id
+  window._consumoDestino = null;   // null, 'propio' o centro_id
 
-  const opciones = fungibles.map(f => `
-    <div class="fungible-opcion" onclick="seleccionarFungibleConsumo('${f.id}')" id="fg-opcion-${f.id}">
-      <strong>${f.tipos_equipo?.nombre || 'Fungible'}${f.especificacion ? ' — ' + f.especificacion : ''}</strong>
-      <div style="font-size:12px;color:var(--muted);">Stock actual: ${f.stock_actual} ${f.unidad_medida}</div>
+  // PASO 1: ¿De dónde coges el fungible?
+  const centrosOpts = window._centrosDisponibles.map(c =>
+    `<div class="fungible-opcion" onclick="seleccionarOrigenFungible('${c.id}')">
+      <strong>Almacén OCA en ${c.nombre}</strong>
     </div>`).join('');
 
   document.getElementById('modal-root').innerHTML = `
     <div class="modal-overlay" onclick="if(event.target===this) cerrarModalFungible()">
       <div class="modal-box">
-        <h3>¿Qué fungible has consumido?</h3>
-        <div id="fg-lista-opciones">${opciones}</div>
-        <div id="fg-cantidad-box" style="display:none;margin-top:10px;">
-          <label style="font-size:12px;color:var(--muted);">Cantidad consumida (<span id="fg-unidad"></span>)</label>
-          <input type="number" step="0.01" min="0.01" class="search-box" id="fg-cantidad-input" placeholder="Ej. 2">
-          <button class="btn primary" style="margin-top:10px;width:100%;" onclick="confirmarConsumoFungible()">Registrar consumo</button>
+        <h3 style="margin-bottom:4px;">¿De dónde coges el fungible?</h3>
+        <p style="font-size:12px;color:var(--muted);margin:0 0 12px;">Indica la ubicación del almacén</p>
+        <div class="fungible-opcion" onclick="seleccionarOrigenFungible('almacen')" style="border-left:4px solid var(--accent);">
+          <strong>Almacén central OCA (Delegación)</strong>
         </div>
+        ${centrosOpts}
         <button class="btn" style="margin-top:10px;width:100%;" onclick="cerrarModalFungible()">Cancelar</button>
       </div>
     </div>`;
+}
+
+function seleccionarOrigenFungible(origen){
+  window._consumoOrigen = origen;
+  if(origen === 'almacen'){
+    // PASO 2: ¿Consumo propio o llevar a centro?
+    const centrosOpts = window._centrosDisponibles.map(c =>
+      `<option value="${c.id}">${c.nombre}</option>`).join('');
+    document.querySelector('.modal-box').innerHTML = `
+      <h3 style="margin-bottom:4px;">¿Para qué lo necesitas?</h3>
+      <p style="font-size:12px;color:var(--muted);margin:0 0 12px;">Almacén central OCA</p>
+      <div class="fungible-opcion" onclick="seleccionarDestinoFungible('propio')" style="border-left:4px solid var(--accent);">
+        <strong>Consumo propio</strong>
+        <div style="font-size:12px;color:var(--muted);">Lo uso yo directamente</div>
+      </div>
+      <div class="fungible-opcion" onclick="seleccionarDestinoFungible('centro')">
+        <strong>Llevar a un centro de trabajo</strong>
+        <div style="font-size:12px;color:var(--muted);">Para el almacén OCA del centro</div>
+      </div>
+      <div id="fg-centro-destino-box" style="display:none;margin-top:8px;">
+        <label style="font-size:12px;color:var(--muted);">Centro de destino</label>
+        <select class="search-box" id="fg-centro-destino">
+          <option value="">— Seleccionar centro —</option>
+          ${centrosOpts}
+        </select>
+        <button class="btn primary" style="margin-top:8px;width:100%;" onclick="confirmarDestinoFungible()">Continuar</button>
+      </div>
+      <button class="btn" style="margin-top:10px;width:100%;" onclick="cerrarModalFungible()">Cancelar</button>`;
+  } else {
+    // Viene de un centro → consumo informativo → directo a selección de fungible
+    window._consumoDestino = null;
+    mostrarSeleccionFungible(false);
+  }
+}
+
+function seleccionarDestinoFungible(destino){
+  if(destino === 'propio'){
+    window._consumoDestino = 'propio';
+    mostrarSeleccionFungible(true);
+  } else {
+    // Mostrar selector de centro destino
+    document.getElementById('fg-centro-destino-box').style.display = 'block';
+  }
+}
+
+function confirmarDestinoFungible(){
+  const centroId = document.getElementById('fg-centro-destino').value;
+  if(!centroId){ mostrarToast('Selecciona el centro de destino.'); return; }
+  window._consumoDestino = centroId;
+  mostrarSeleccionFungible(true);
+}
+
+function mostrarSeleccionFungible(muestraStock){
+  const fungibles = window._fungiblesDisponibles;
+  const esInformativo = window._consumoOrigen !== 'almacen';
+  const esEnvio = window._consumoOrigen === 'almacen' && window._consumoDestino && window._consumoDestino !== 'propio';
+  const centroNombre = esInformativo
+    ? (window._centrosDisponibles.find(c => c.id === window._consumoOrigen)?.nombre || '')
+    : esEnvio
+      ? (window._centrosDisponibles.find(c => c.id === window._consumoDestino)?.nombre || '')
+      : '';
+
+  let titulo = '¿Qué fungible has consumido?';
+  let subtitulo = '';
+  if(esEnvio) { titulo = '¿Qué fungible llevas al centro?'; subtitulo = 'Destino: ' + centroNombre; }
+  if(esInformativo) { titulo = '¿Qué fungible has usado?'; subtitulo = 'Almacén OCA en ' + centroNombre + ' (registro informativo)'; }
+
+  const opciones = fungibles.map(f => `
+    <div class="fungible-opcion" onclick="seleccionarFungibleConsumo('${f.id}')" id="fg-opcion-${f.id}">
+      <strong>${f.tipos_equipo?.nombre || 'Fungible'}${f.especificacion ? ' — ' + f.especificacion : ''}</strong>
+      ${muestraStock ? `<div style="font-size:12px;color:var(--muted);">Stock almacén: ${f.stock_actual} ${f.unidad_medida}</div>` : `<div style="font-size:12px;color:var(--muted);">${f.unidad_medida}</div>`}
+    </div>`).join('');
+
+  document.querySelector('.modal-box').innerHTML = `
+    <h3 style="margin-bottom:4px;">${titulo}</h3>
+    ${subtitulo ? `<p style="font-size:12px;color:var(--muted);margin:0 0 12px;">${subtitulo}</p>` : ''}
+    <div id="fg-lista-opciones" style="max-height:40vh;overflow-y:auto;">${opciones}</div>
+    <div id="fg-cantidad-box" style="display:none;margin-top:10px;">
+      <label style="font-size:12px;color:var(--muted);">Cantidad (<span id="fg-unidad"></span>)</label>
+      <input type="number" step="0.01" min="0.01" class="search-box" id="fg-cantidad-input" placeholder="Ej. 2">
+      <button class="btn primary" style="margin-top:10px;width:100%;" onclick="confirmarConsumoFungible()">
+        ${esInformativo ? 'Registrar uso' : esEnvio ? 'Registrar envío a centro' : 'Registrar consumo'}
+      </button>
+    </div>
+    <button class="btn" style="margin-top:10px;width:100%;" onclick="cerrarModalFungible()">Cancelar</button>`;
 }
 
 function seleccionarFungibleConsumo(fungibleId){
@@ -2066,18 +2160,41 @@ async function confirmarConsumoFungible(){
   const cantidad = parseFloat(document.getElementById('fg-cantidad-input').value);
   if(!f || isNaN(cantidad) || cantidad <= 0){ mostrarToast('Indica una cantidad válida.'); return; }
 
-  const { data: cruzaUmbral, error } = await db.rpc('registrar_consumo_fungible', {
-    p_fungible_id: f.id, p_cantidad: cantidad
-  });
-  if(error){ mostrarToast('Error al registrar consumo: ' + error.message); return; }
-  mostrarToast(cruzaUmbral ? 'Consumo registrado. Aviso de stock bajo enviado al Gestor.' : 'Consumo registrado.');
+  const origen = window._consumoOrigen;
+  const destino = window._consumoDestino;
+
+  if(origen !== 'almacen'){
+    // CONSUMO EN CENTRO — informativo, NO resta stock
+    const { error } = await db.rpc('registrar_consumo_centro', {
+      p_fungible_id: f.id, p_cantidad: cantidad, p_centro_id: origen
+    });
+    if(error){ mostrarToast('Error: ' + error.message); return; }
+    mostrarToast('Uso en centro registrado (informativo).');
+  } else if(destino && destino !== 'propio'){
+    // ENVÍO A CENTRO — SÍ resta stock
+    const { data: cruzaUmbral, error } = await db.rpc('registrar_envio_centro', {
+      p_fungible_id: f.id, p_cantidad: cantidad, p_centro_id: destino
+    });
+    if(error){ mostrarToast('Error: ' + error.message); return; }
+    mostrarToast(cruzaUmbral ? 'Envío a centro registrado. Stock bajo — aviso enviado.' : 'Envío a centro registrado.');
+  } else {
+    // CONSUMO PROPIO — SÍ resta stock (flujo original)
+    const { data: cruzaUmbral, error } = await db.rpc('registrar_consumo_fungible', {
+      p_fungible_id: f.id, p_cantidad: cantidad
+    });
+    if(error){ mostrarToast('Error: ' + error.message); return; }
+    mostrarToast(cruzaUmbral ? 'Consumo registrado. Aviso de stock bajo enviado.' : 'Consumo registrado.');
+  }
   cerrarModalFungible();
 }
 
 function cerrarModalFungible(){
   document.getElementById('modal-root').innerHTML = '';
   window._fungiblesDisponibles = null;
+  window._centrosDisponibles = null;
   window._fungibleSeleccionado = null;
+  window._consumoOrigen = null;
+  window._consumoDestino = null;
 }
 </script>
 <div id="modal-root"></div>
