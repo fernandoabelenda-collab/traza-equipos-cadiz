@@ -631,6 +631,7 @@ async function abrirEdicion(equipoId){
       </div>
 
       <button class="btn primary" onclick="guardarEdicion('${e.id}')">Guardar cambios</button>
+      <button class="btn" style="margin-top:8px;background:#e74c3c;color:#fff;width:100%;" onclick="eliminarEquipo('${e.id}','${(e.tipos_equipo?.nombre||'').replace(/'/g,"\\'")} — ${e.nº_serie.replace(/'/g,"\\'")}')">🗑 Eliminar equipo</button>
     </div>`;
 }
 
@@ -640,28 +641,31 @@ async function guardarEdicion(equipoId){
   if(tecnicoId && estado === 'disponible') estado = 'en_uso';
   if(!tecnicoId && estado === 'en_uso') estado = 'disponible';
 
-  const updates = {
-    tecnico_actual_id: tecnicoId,
-    nº_serie: document.getElementById('ed-serie').value.trim() || null,
-    id_oca: document.getElementById('ed-idoca').value.trim() || null,
-    marca: document.getElementById('ed-marca').value.trim() || null,
-    modelo: document.getElementById('ed-modelo').value.trim() || null,
-    fecha_ultima_calibracion: document.getElementById('ed-fcalib').value || null,
-    fecha_vencimiento_calibracion: document.getElementById('ed-fvenc').value || null,
-    tipo_calibracion: document.getElementById('ed-tipocalib').value || 'interna',
-    ubicacion_texto: document.getElementById('ed-ubicacion').value.trim() || null,
-    observaciones: document.getElementById('ed-observaciones').value.trim() || null,
-    estado,
-  };
-  const { error } = await db.from('equipos').update(updates).eq('id', equipoId);
-  if(error){ mostrarToast('Error al guardar: ' + error.message); return; }
-
-  await db.from('movimientos').insert({
-    equipo_id: equipoId, usuario_id: usuarioActual.id,
-    accion: tecnicoId ? 'entrega_directa_gestor' : 'devolucion_almacen',
-    detalle: 'Asignación manual desde Panel Gestor'
+  const { data, error } = await db.rpc('actualizar_equipo', {
+    p_equipo_id: equipoId,
+    p_tecnico_id: tecnicoId,
+    p_serie: document.getElementById('ed-serie').value.trim(),
+    p_id_oca: document.getElementById('ed-idoca').value.trim() || null,
+    p_marca: document.getElementById('ed-marca').value.trim() || null,
+    p_modelo: document.getElementById('ed-modelo').value.trim() || null,
+    p_fecha_calib: document.getElementById('ed-fcalib').value || null,
+    p_fecha_venc: document.getElementById('ed-fvenc').value || null,
+    p_tipo_calib: document.getElementById('ed-tipocalib').value || 'interna',
+    p_ubicacion: document.getElementById('ed-ubicacion').value.trim() || null,
+    p_observaciones: document.getElementById('ed-observaciones').value.trim() || null,
+    p_estado: estado,
   });
-  mostrarToast('Equipo actualizado.');
+  if(error){ mostrarToast('Error al guardar: ' + error.message); return; }
+  mostrarToast('Equipo actualizado correctamente.');
+  document.getElementById('edit-formulario').innerHTML = '';
+  document.getElementById('edit-buscar').value = '';
+}
+
+async function eliminarEquipo(equipoId, nombre){
+  if(!confirm('¿Estás seguro de eliminar "' + nombre + '"?\n\nEsta acción no se puede deshacer.')) return;
+  const { error } = await db.rpc('eliminar_equipo', { p_equipo_id: equipoId });
+  if(error){ mostrarToast('Error al eliminar: ' + error.message); return; }
+  mostrarToast('Equipo eliminado correctamente.');
   document.getElementById('edit-formulario').innerHTML = '';
   document.getElementById('edit-buscar').value = '';
 }
@@ -1289,28 +1293,22 @@ async function guardarDesdeInventario(equipoId){
   if(tecnicoId && estado === 'disponible') estado = 'en_uso';
   if(!tecnicoId && estado === 'en_uso') estado = 'disponible';
 
-  const updates = {
-    tecnico_actual_id: tecnicoId,
-    nº_serie: document.getElementById('inv-serie').value.trim() || null,
-    id_oca: document.getElementById('inv-idoca').value.trim() || null,
-    marca: document.getElementById('inv-marca').value.trim() || null,
-    modelo: document.getElementById('inv-modelo').value.trim() || null,
-    ubicacion_texto: document.getElementById('inv-ubicacion').value.trim() || null,
-    fecha_ultima_calibracion: document.getElementById('inv-fcalib').value || null,
-    fecha_vencimiento_calibracion: document.getElementById('inv-fvenc').value || null,
-    tipo_calibracion: document.getElementById('inv-tipocalib').value || 'interna',
-    estado,
-    observaciones: document.getElementById('inv-obs').value.trim() || null,
-  };
-  const { error } = await db.from('equipos').update(updates).eq('id', equipoId);
-  if(error){ mostrarToast('Error: ' + error.message); return; }
-
-  await db.from('movimientos').insert({
-    equipo_id: equipoId, usuario_id: usuarioActual.id,
-    accion: tecnicoId ? 'entrega_directa_gestor' : 'devolucion_almacen',
-    detalle: 'Asignación manual desde inventario'
+  const { data, error } = await db.rpc('actualizar_equipo', {
+    p_equipo_id: equipoId,
+    p_tecnico_id: tecnicoId,
+    p_serie: document.getElementById('inv-serie').value.trim(),
+    p_id_oca: document.getElementById('inv-idoca').value.trim() || null,
+    p_marca: document.getElementById('inv-marca').value.trim() || null,
+    p_modelo: document.getElementById('inv-modelo').value.trim() || null,
+    p_fecha_calib: document.getElementById('inv-fcalib').value || null,
+    p_fecha_venc: document.getElementById('inv-fvenc').value || null,
+    p_tipo_calib: document.getElementById('inv-tipocalib').value || 'interna',
+    p_ubicacion: document.getElementById('inv-ubicacion').value.trim() || null,
+    p_observaciones: document.getElementById('inv-obs').value.trim() || null,
+    p_estado: estado,
   });
-  mostrarToast('Equipo actualizado.');
+  if(error){ mostrarToast('Error: ' + error.message); return; }
+  mostrarToast('Equipo actualizado correctamente.');
   document.getElementById('inventario-edicion').innerHTML = '';
   cargarInventario();
 }
