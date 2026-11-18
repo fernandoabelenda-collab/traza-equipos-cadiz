@@ -133,8 +133,9 @@
   .kanban-col h4{font-size:12px; color:var(--muted); margin-bottom:6px; text-transform:uppercase;}
   .kanban-card{background:var(--card); border-radius:8px; padding:9px; margin-bottom:6px; font-size:12px; box-shadow:0 1px 2px rgba(0,0,0,.06);}
   table.inv{width:100%; border-collapse:collapse; font-size:12px; background:var(--card); border-radius:8px; overflow:hidden;}
-  table.inv th{background:var(--navy); color:#fff; padding:6px 8px; text-align:left; font-size:11px; text-transform:uppercase; letter-spacing:.3px;}
-  table.inv td{padding:6px 8px; border-bottom:1px solid #EEF0F2;}
+  table.inv th{background:var(--navy); color:#fff; padding:5px 6px; text-align:left; font-size:10px; text-transform:uppercase; letter-spacing:.3px; white-space:nowrap;}
+  table.inv td{padding:5px 6px; border-bottom:1px solid #EEF0F2; white-space:nowrap;}
+  table.inv td.obs-cell{white-space:normal; max-width:140px; word-break:break-word;}
   table.inv tr:hover td{background:#F7FAFA;}
   .gauge-wrap{background:#EEE; border-radius:6px; height:8px; overflow:hidden; margin-top:5px;}
   .gauge-fill{height:100%; background:var(--ok);}
@@ -153,7 +154,7 @@
     .kpi .lbl{font-size:11px;}
     .kanban{gap:12px;}
     .kanban-col{min-width:250px; padding:12px;}
-    table.inv td, table.inv th{padding:8px 12px;}
+    table.inv td, table.inv th{padding:6px 8px;}
     #login-screen input, #login-screen button{max-width:400px; padding:16px; font-size:17px;}
   }
   @media (min-width: 1200px){
@@ -1131,7 +1132,7 @@ async function cargarInventario(){
     <div id="inventario-edicion"></div>
     <div style="overflow-x:auto;">
       <table class="inv" id="tabla-inventario">
-        <tr><th>Nº Serie</th><th>ID OCA</th><th>Tipo</th><th>Marca</th><th>Modelo</th><th>Estado</th><th>Recibido de</th><th>Fecha recibido</th><th>Último devolvió</th><th>Fecha devolución</th><th>Observaciones</th><th>Venc. Calib.</th></tr>
+        <tr><th>Serie</th><th>ID</th><th>Tipo</th><th>Marca</th><th>Modelo</th><th>Estado</th><th>De</th><th>F.Recib.</th><th>Devolvió</th><th>F.Dev.</th><th>Obs.</th><th>Venc.Cal.</th></tr>
       </table>
     </div>
     <div style="color:var(--muted);font-size:12px;margin-top:8px;" id="inventario-total"></div>`;
@@ -1210,13 +1211,13 @@ function renderTablaInventario(lista){
         const d = inventarioDevolucionMap[e.id];
         return d?.fecha ? new Date(d.fecha).toLocaleDateString('es-ES') : '—';
       })()}</td>
-      <td style="max-width:160px;font-size:12px;">${e.observaciones||'—'}</td>
+      <td class="obs-cell" style="font-size:11px;">${e.observaciones||'—'}</td>
       <td style="font-size:11px;color:var(--muted);">${e.fecha_vencimiento_calibracion||'—'}</td>
     </tr>`;
   }).join('');
 
   document.getElementById('tabla-inventario').innerHTML = `
-    <tr><th>Nº Serie</th><th>ID OCA</th><th>Tipo</th><th>Marca</th><th>Modelo</th><th>Estado</th><th>Recibido de</th><th>Fecha recibido</th><th>Último devolvió</th><th>Fecha devolución</th><th>Observaciones</th><th>Venc. Calib.</th></tr>
+    <tr><th>Serie</th><th>ID</th><th>Tipo</th><th>Marca</th><th>Modelo</th><th>Estado</th><th>De</th><th>F.Recib.</th><th>Devolvió</th><th>F.Dev.</th><th>Obs.</th><th>Venc.Cal.</th></tr>
     ${filas || '<tr><td colspan="12" class="empty">Sin equipos que coincidan con el filtro.</td></tr>'}`;
   document.getElementById('inventario-total').textContent = `Total: ${(lista||[]).length} equipos`;
 }
