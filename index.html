@@ -782,6 +782,7 @@ async function cargarEdicionFungible(){
         <div class="field"><label>Proveedor habitual</label><input type="text" class="search-box" id="fged-proveedor" value="${f.proveedor_habitual||''}"></div>
       </div>
       <button class="btn primary" onclick="guardarEdicionFungible('${f.id}')">Guardar cambios</button>
+      ${usuarioActual && (usuarioActual.rol === 'gestor' || usuarioActual.rol === 'delegado') ? `<button class="btn" style="margin-top:8px;background:#e74c3c;color:#fff;width:100%;" onclick="eliminarFungible('${f.id}','${(f.tipos_equipo?.nombre||'Fungible').replace(/'/g,"\\'")}${f.especificacion ? ' — '+f.especificacion.replace(/'/g,"\\'") : ''}')">🗑 Eliminar fungible</button>` : ''}
     </div>`;
 }
 
