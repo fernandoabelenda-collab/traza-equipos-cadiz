@@ -1113,6 +1113,7 @@ async function cargarInventario(){
 
   document.getElementById('sub-inventario').innerHTML = `
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;">
+      <input type="text" class="search-box" id="filtro-inv-texto" placeholder="🔍 Buscar por serie, ID OCA, marca, modelo..." oninput="filtrarInventario()" style="flex:1;min-width:200px;">
       <select class="search-box" id="filtro-inv-tipo" style="max-width:220px;" onchange="filtrarInventario()">
         <option value="">Todos los tipos</option>
         ${opcionesTipo}
@@ -1140,11 +1141,24 @@ async function cargarInventario(){
 function filtrarInventario(){
   const categoria = document.getElementById('filtro-inv-tipo').value;
   const estado = document.getElementById('filtro-inv-estado').value;
+  const texto = (document.getElementById('filtro-inv-texto')?.value || '').toLowerCase().trim();
   const filtrada = inventarioDataCompleta.filter(e => {
     if(categoria && !(e.tipos_equipo?.nombre || '').trim().toUpperCase().startsWith(categoria)) return false;
-    if(!estado) return true;
-    if(estado === 'en_uso') return ['en_uso','solicitud_pendiente','solicitud_bloqueada'].includes(e.estado);
-    return e.estado === estado;
+    if(estado){
+      if(estado === 'en_uso'){ if(!['en_uso','solicitud_pendiente','solicitud_bloqueada'].includes(e.estado)) return false; }
+      else if(e.estado !== estado) return false;
+    }
+    if(texto){
+      const serie = (e.nº_serie || '').toLowerCase();
+      const idOca = (e.id_oca || '').toLowerCase();
+      const marca = (e.marca || '').toLowerCase();
+      const modelo = (e.modelo || '').toLowerCase();
+      const tipo = (e.tipos_equipo?.nombre || '').toLowerCase();
+      const obs = (e.observaciones || '').toLowerCase();
+      const ubic = (e.ubicacion_texto || '').toLowerCase();
+      if(!serie.includes(texto) && !idOca.includes(texto) && !marca.includes(texto) && !modelo.includes(texto) && !tipo.includes(texto) && !obs.includes(texto) && !ubic.includes(texto)) return false;
+    }
+    return true;
   });
   renderTablaInventario(filtrada);
 }
@@ -2139,9 +2153,12 @@ function mostrarSeleccionFungible(muestraStock){
       ${muestraStock ? `<div style="font-size:12px;color:var(--muted);">Stock almacén: ${f.stock_actual} ${f.unidad_medida}</div>` : `<div style="font-size:12px;color:var(--muted);">${f.unidad_medida}</div>`}
     </div>`).join('');
 
+  window._fungiblesOpciones = fungibles;
+  window._muestraStockActual = muestraStock;
   document.querySelector('.modal-box').innerHTML = `
     <h3 style="margin-bottom:4px;">${titulo}</h3>
     ${subtitulo ? `<p style="font-size:12px;color:var(--muted);margin:0 0 12px;">${subtitulo}</p>` : ''}
+    <input type="text" class="search-box" id="fg-buscar" placeholder="🔍 Buscar fungible..." oninput="filtrarFungiblesModal()" style="margin-bottom:8px;">
     <div id="fg-lista-opciones" style="max-height:40vh;overflow-y:auto;">${opciones}</div>
     <div id="fg-cantidad-box" style="display:none;margin-top:10px;">
       <label style="font-size:12px;color:var(--muted);">Cantidad (<span id="fg-unidad"></span>)</label>
@@ -2194,6 +2211,26 @@ async function confirmarConsumoFungible(){
     mostrarToast(cruzaUmbral ? 'Consumo registrado. Aviso de stock bajo enviado.' : 'Consumo registrado.');
   }
   cerrarModalFungible();
+}
+
+function filtrarFungiblesModal(){
+  const q = document.getElementById('fg-buscar').value.toLowerCase().trim();
+  const fungibles = window._fungiblesOpciones || [];
+  const muestraStock = window._muestraStockActual;
+  const contenedor = document.getElementById('fg-lista-opciones');
+  const filtrados = fungibles.filter(f => {
+    const nombre = (f.tipos_equipo?.nombre || '').toLowerCase();
+    const espec = (f.especificacion || '').toLowerCase();
+    const unidad = (f.unidad_medida || '').toLowerCase();
+    return nombre.includes(q) || espec.includes(q) || unidad.includes(q);
+  });
+  contenedor.innerHTML = filtrados.length === 0
+    ? '<p style="text-align:center;color:var(--muted);padding:20px;">Sin resultados</p>'
+    : filtrados.map(f => `
+      <div class="fungible-opcion" onclick="seleccionarFungibleConsumo('${f.id}')" id="fg-opcion-${f.id}">
+        <strong>${f.tipos_equipo?.nombre || 'Fungible'}${f.especificacion ? ' — ' + f.especificacion : ''}</strong>
+        ${muestraStock ? `<div style="font-size:12px;color:var(--muted);">Stock almacén: ${f.stock_actual} ${f.unidad_medida}</div>` : `<div style="font-size:12px;color:var(--muted);">${f.unidad_medida}</div>`}
+      </div>`).join('');
 }
 
 function cerrarModalFungible(){
