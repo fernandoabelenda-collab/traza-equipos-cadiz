@@ -135,7 +135,7 @@
   table.inv{width:100%; border-collapse:collapse; font-size:12px; background:var(--card); border-radius:8px; overflow:hidden;}
   table.inv th{background:var(--navy); color:#fff; padding:5px 6px; text-align:left; font-size:10px; text-transform:uppercase; letter-spacing:.3px; white-space:nowrap;}
   table.inv td{padding:5px 6px; border-bottom:1px solid #EEF0F2; white-space:nowrap;}
-  table.inv td.obs-cell{white-space:normal; max-width:140px; word-break:break-word;}
+  table.inv td.obs-cell{max-width:120px; overflow:hidden; text-overflow:ellipsis;}
   table.inv tr:hover td{background:#F7FAFA;}
   .gauge-wrap{background:#EEE; border-radius:6px; height:8px; overflow:hidden; margin-top:5px;}
   .gauge-fill{height:100%; background:var(--ok);}
@@ -1211,7 +1211,7 @@ function renderTablaInventario(lista){
         const d = inventarioDevolucionMap[e.id];
         return d?.fecha ? new Date(d.fecha).toLocaleDateString('es-ES') : '—';
       })()}</td>
-      <td class="obs-cell" style="font-size:11px;">${e.observaciones||'—'}</td>
+      <td class="obs-cell" style="font-size:11px;" title="${(e.observaciones||'').replace(/"/g,'&quot;')}">${e.observaciones||'—'}</td>
       <td style="font-size:11px;color:var(--muted);">${e.fecha_vencimiento_calibracion||'—'}</td>
     </tr>`;
   }).join('');
