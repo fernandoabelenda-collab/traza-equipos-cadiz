@@ -1404,6 +1404,7 @@ function renderFungibles(lista){
     const pct = Math.min(100, Math.round((f.stock_actual / Math.max(f.punto_pedido * 2, 1)) * 100));
     const bajo = f.stock_actual <= f.punto_pedido;
     const titulo = [f.tipos_equipo?.nombre || 'Fungible', f.especificacion].filter(Boolean).join(' — ');
+    const puedeEliminar = usuarioActual && (usuarioActual.rol === 'gestor' || usuarioActual.rol === 'delegado');
     return `
       <div class="card" style="${bajo?'border-left:4px solid var(--bad)':''}">
         <div style="display:flex;justify-content:space-between;align-items:center;">
@@ -1414,6 +1415,7 @@ function renderFungibles(lista){
           <div style="text-align:right;font-size:12px;color:var(--muted);">
             Mínimo: ${f.punto_pedido} ${f.unidad_medida}<br>
             ${f.proveedor_habitual ? 'Prov: '+f.proveedor_habitual : ''}
+            ${puedeEliminar ? `<br><button class="btn" style="margin-top:4px;padding:2px 8px;font-size:11px;background:#e74c3c;color:#fff;" onclick="event.stopPropagation();eliminarFungible('${f.id}','${titulo.replace(/'/g,"\\'")}')">🗑 Eliminar</button>` : ''}
           </div>
         </div>
         <div class="gauge-wrap"><div class="gauge-fill ${bajo?'low':''}" style="width:${pct}%"></div></div>
@@ -1472,6 +1474,14 @@ async function borrarHistoricoFungibles(){
   if(error){ mostrarToast('Error al borrar histórico: ' + error.message); return; }
   mostrarToast('Histórico antiguo eliminado.');
   cargarHistoricoFungibles();
+}
+
+async function eliminarFungible(fungibleId, nombre){
+  if(!confirm('¿Estás seguro de eliminar "' + nombre + '"?\n\nSe borrarán también todos sus movimientos. Esta acción no se puede deshacer.')) return;
+  const { error } = await db.rpc('eliminar_fungible', { p_fungible_id: fungibleId });
+  if(error){ mostrarToast('Error al eliminar: ' + error.message); return; }
+  mostrarToast('Fungible eliminado correctamente.');
+  cargarFungibles();
 }
 
 // ------------------------------------------------------------
